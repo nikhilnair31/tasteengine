@@ -14,6 +14,16 @@ follow semantic versioning.
   `get_group` MCP tools. No model call at request time: a fit takes about 3 s
   for 5300 items and runs at boot when the vault moves more than 10%.
 
+### Fixed
+
+- Groups no longer cluster screenshots by their chrome. A bulk-imported
+  screenshot carries the title `screenshot · <date> · <platform>` and an image
+  vector that describes a phone UI, so hundreds of unrelated saves shared both
+  vectors. Import titles are now dropped from the text side, the explainer
+  digest (summary, mood, style DNA, color words, tags) joins it, and screenshot
+  items blend 0.2 image / 0.8 text while scenes keep 0.7 / 0.3. A finished
+  explainer now re-fuses its item.
+
 ### Changed
 
 - Item vectors now blend the image mean (0.7) with the CLIP text embedding of

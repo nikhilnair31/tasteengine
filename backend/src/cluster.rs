@@ -21,6 +21,12 @@ use serde_json::{json, Map, Value};
 const DIM: usize = 512;
 const IMG_W: f32 = 0.7;
 const TEXT_W: f32 = 0.3;
+/// A screenshot of a post carries the post's words, not a scene. Its image
+/// vector describes a phone UI, so two unrelated screenshots look identical to
+/// the image tower and would cluster together on nothing. Flip the weights for
+/// those items and let the words decide.
+const SHOT_IMG_W: f32 = 0.2;
+const SHOT_TEXT_W: f32 = 0.8;
 const MAX_TEXT: usize = 2000;
 const MAX_ITERS: usize = 25;
 
@@ -139,9 +145,8 @@ fn media_mean(conn: &Connection, item_id: &str) -> Option<Vec<f32>> {
     }
 }
 
-/// CLIP text of title+body. None when the text is empty or the model is absent.
-fn text_vec(title: &str, text: &str) -> Option<Vec<f32>> {
-    let joined = format!("{}\n{}", title.trim(), text.trim());
+/// CLIP text of one prepared string. None when it is empty.
+fn text_vec(joined: &str) -> Option<Vec<f32>> {
     let clipped: String = joined.chars().take(MAX_TEXT).collect();
     if clipped.trim().is_empty() {
         return None;
@@ -154,6 +159,123 @@ fn text_vec(title: &str, text: &str) -> Option<Vec<f32>> {
     }
 }
 
+/// Titles an importer invents: "screenshot · Aug 05 2025 · twitter", "Image
+/// taken on May 24, 2025", "saved image". They describe the transport, not the
+/// content, and they are near-identical across hundreds of rows, so they must
+/// never reach the text tower.
+fn generic_title(t: &str) -> bool {
+    let l = t.trim().to_lowercase();
+    l.is_empty()
+        || l == "saved image"
+        || l.starts_with("image taken on")
+        || l.starts_with("untitled")
+        || (l.contains("screenshot") && l.len() < 80)
+}
+
+/// The words a fusion should read: the post's own text, its title when the
+/// title says something, and the explainer's digest of what the media shows.
+fn item_text(title: &str, text: &str, digest: &str) -> Option<String> {
+    let mut parts: Vec<&str> = Vec::new();
+    if !generic_title(title) {
+        parts.push(title.trim());
+    }
+    if !text.trim().is_empty() {
+        parts.push(text.trim());
+    }
+    if !digest.trim().is_empty() {
+        parts.push(digest.trim());
+    }
+    let joined = parts.join("\n");
+    if joined.trim().is_empty() {
+        None
+    } else {
+        Some(joined.chars().take(MAX_TEXT).collect())
+    }
+}
+
+/// Explainer summary, mood, style DNA, color words and tags as one paragraph.
+/// This is the only content a screenshot-only save has, so it carries the weight
+/// when the post text is empty.
+fn explainer_digest(data: &str) -> String {
+    let Ok(v) = serde_json::from_str::<Value>(data) else {
+        return String::new();
+    };
+    let mut out: Vec<String> = Vec::new();
+    for key in ["summary", "style_dna", "mood", "color_words"] {
+        if let Some(s) = v.get(key).and_then(|x| x.as_str()) {
+            if !s.trim().is_empty() {
+                out.push(s.trim().to_string());
+            }
+        }
+    }
+    if let Some(tags) = v.get("tags").and_then(|x| x.as_array()) {
+        let joined: Vec<&str> = tags.iter().filter_map(|t| t.as_str()).collect();
+        if !joined.is_empty() {
+            out.push(joined.join(", "));
+        }
+    }
+    out.join(". ")
+}
+
+fn explainer_digest_for(conn: &Connection, item_id: &str) -> String {
+    conn.query_row(
+        "SELECT data FROM explanations WHERE item_id=? AND status='done'",
+        [item_id],
+        |r| r.get::<_, String>(0),
+    )
+    .map(|d| explainer_digest(&d))
+    .unwrap_or_default()
+}
+
+/// True when the media is a phone screenshot rather than a scene: the file or
+/// the title says so, or the first frame is far taller than it is wide.
+fn is_screenshot(conn: &Connection, item_id: &str, title: &str) -> bool {
+    if title.to_lowercase().contains("screenshot") {
+        return true;
+    }
+    let named: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM media WHERE item_id=? \
+             AND (lower(COALESCE(original_name,'')) LIKE '%screenshot%' \
+                  OR lower(COALESCE(file,'')) LIKE '%screenshot%')",
+            [item_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if named > 0 {
+        return true;
+    }
+    let ratio: f64 = conn
+        .query_row(
+            "SELECT COALESCE(height * 1.0 / NULLIF(width,0), 0) FROM media \
+             WHERE item_id=? ORDER BY rowid LIMIT 1",
+            [item_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(0.0);
+    (1.9..=4.0).contains(&ratio)
+}
+
+/// Weighted sum of the two towers, normalized. Screenshots lean on words.
+fn blend(img: Option<Vec<f32>>, txt: Option<Vec<f32>>, shot: bool) -> Option<Vec<f32>> {
+    let (iw, tw) = if shot { (SHOT_IMG_W, SHOT_TEXT_W) } else { (IMG_W, TEXT_W) };
+    match (img, txt) {
+        (Some(mut a), Some(b)) => {
+            for (x, y) in a.iter_mut().zip(b.iter()) {
+                *x = *x * iw + *y * tw;
+            }
+            if normalize(&mut a) {
+                Some(a)
+            } else {
+                Some(b)
+            }
+        }
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
 /// One vector per item: pictures and words, weighted, in the same 512-d space.
 pub fn fused_vec(conn: &Connection, item_id: &str) -> Option<Vec<f32>> {
     let (title, text): (String, String) = conn
@@ -161,29 +283,24 @@ pub fn fused_vec(conn: &Connection, item_id: &str) -> Option<Vec<f32>> {
             Ok((r.get::<_, Option<String>>(0)?.unwrap_or_default(), r.get::<_, Option<String>>(1)?.unwrap_or_default()))
         })
         .unwrap_or_default();
+    let shot = is_screenshot(conn, item_id, &title);
+    let digest = explainer_digest_for(conn, item_id);
     let img = media_mean(conn, item_id);
-    let txt = text_vec(&title, &text);
-    match (img, txt) {
-        (Some(mut i), Some(t)) => {
-            for (a, b) in i.iter_mut().zip(t.iter()) {
-                *a = *a * IMG_W + *b * TEXT_W;
-            }
-            if normalize(&mut i) { Some(i) } else { Some(t) }
-        }
-        (Some(i), None) => Some(i),
-        (None, Some(t)) => Some(t),
-        (None, None) => None,
-    }
+    let txt = item_text(&title, &text, &digest).and_then(|t| text_vec(&t));
+    blend(img, txt, shot)
 }
 
 fn fuse_sig(conn: &Connection, item_id: &str) -> String {
-    let (tl, tx): (i64, i64) = conn
+    let (tl, tx, ex): (i64, i64, i64) = conn
         .query_row(
-            "SELECT COALESCE(LENGTH(title),0), COALESCE(LENGTH(text),0) FROM items WHERE id=?",
+            "SELECT COALESCE(LENGTH(i.title),0), COALESCE(LENGTH(i.text),0), \
+             COALESCE(LENGTH(e.data),0) FROM items i \
+             LEFT JOIN explanations e ON e.item_id=i.id AND e.status='done' \
+             WHERE i.id=?",
             [item_id],
-            |r| Ok((r.get(0)?, r.get(1)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
-        .unwrap_or((0, 0));
+        .unwrap_or((0, 0, 0));
     let (mc, mr): (i64, i64) = conn
         .query_row(
             "SELECT COUNT(*), COALESCE(MAX(rowid),0) FROM media WHERE item_id=?",
@@ -191,7 +308,7 @@ fn fuse_sig(conn: &Connection, item_id: &str) -> String {
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .unwrap_or((0, 0));
-    format!("{tl}:{tx}:{mc}:{mr}")
+    format!("{tl}:{tx}:{ex}:{mc}:{mr}")
 }
 
 /// Rewrite item_embeds with the fused vector. `limit` caps the items touched
@@ -205,17 +322,24 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
         sig: String,
         title: String,
         text: String,
+        digest: String,
+        shot: bool,
     }
-    // sig and prev sig both come from SQL, so the scan is one pass
+    // sig and prev sig both come from SQL, so the scan is one pass. The sig
+    // carries the explainer length: a finished explainer is new evidence, and
+    // the item must re-fuse or its screenshot stays wordless.
     let mut pending: Vec<Cand> = Vec::new();
     let mut skipped = 0usize;
     if let Ok(mut stmt) = conn.prepare(
-        "SELECT i.id, COALESCE(i.title,''), COALESCE(i.text,''), \
+        "SELECT i.id, COALESCE(i.title,''), COALESCE(i.text,''), COALESCE(e.data,''), \
          COALESCE(LENGTH(i.title),0) || ':' || COALESCE(LENGTH(i.text),0) || ':' || \
+         COALESCE(LENGTH(e.data),0) || ':' || \
          (SELECT COUNT(*) FROM media m WHERE m.item_id=i.id) || ':' || \
          (SELECT COALESCE(MAX(rowid),0) FROM media m WHERE m.item_id=i.id) AS sig, \
          COALESCE(f.sig,'') AS prev \
-         FROM items i LEFT JOIN item_fuse f ON f.item_id=i.id \
+         FROM items i \
+         LEFT JOIN explanations e ON e.item_id=i.id AND e.status='done' \
+         LEFT JOIN item_fuse f ON f.item_id=i.id \
          WHERE (i.deleted_at IS NULL OR i.deleted_at='') ORDER BY i.rowid",
     ) {
         if let Ok(rows) = stmt.query_map([], |r| {
@@ -225,14 +349,23 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
                 r.get::<_, String>(2)?,
                 r.get::<_, String>(3)?,
                 r.get::<_, String>(4)?,
+                r.get::<_, String>(5)?,
             ))
         }) {
-            for (id, title, text, sig, prev) in rows.flatten() {
+            for (id, title, text, data, sig, prev) in rows.flatten() {
                 if !force && sig == prev {
                     skipped += 1;
                     continue;
                 }
-                pending.push(Cand { id, sig, title, text });
+                let shot = is_screenshot(conn, &id, &title);
+                pending.push(Cand {
+                    id,
+                    sig,
+                    title,
+                    text,
+                    digest: explainer_digest(&data),
+                    shot,
+                });
             }
         }
     }
@@ -267,7 +400,7 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
         batch.clear();
     };
     for (i, c) in pending.iter().enumerate() {
-        let joined = item_text(&c.title, &c.text);
+        let joined = item_text(&c.title, &c.text, &c.digest);
         match joined {
             Some(t) => {
                 slots.push(i);
@@ -286,17 +419,7 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
     for (i, c) in pending.iter().enumerate() {
         let img = imgs[i].take();
         let txt = txts[i].take();
-        let vec = match (img, txt) {
-            (Some(mut a), Some(b)) => {
-                for (x, y) in a.iter_mut().zip(b.iter()) {
-                    *x = *x * IMG_W + *y * TEXT_W;
-                }
-                if normalize(&mut a) { Some(a) } else { Some(b) }
-            }
-            (Some(a), None) => Some(a),
-            (None, Some(b)) => Some(b),
-            (None, None) => None,
-        };
+        let vec = blend(img, txt, c.shot);
         match vec {
             Some(v) => {
                 let _ = conn.execute(
@@ -309,23 +432,23 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
                 );
                 fused += 1;
             }
-            None => failed += 1,
+            None => {
+                // Nothing to say about this item yet (no media, no words). Drop
+                // any stale vector, or it would keep voting in the fit, and
+                // record the sig so the next boot does not rescan it forever.
+                let _ = conn.execute("DELETE FROM item_embeds WHERE item_id=?", params![c.id]);
+                let _ = conn.execute(
+                    "INSERT OR REPLACE INTO item_fuse(item_id, sig, fused_at) VALUES(?,?,datetime('now'))",
+                    params![c.id, c.sig],
+                );
+                failed += 1;
+            }
         }
     }
     if fused > 0 {
         crate::search::invalidate_index();
     }
     (fused, skipped, failed, remaining)
-}
-
-fn item_text(title: &str, text: &str) -> Option<String> {
-    let joined = format!("{}\n{}", title.trim(), text.trim());
-    let clipped: String = joined.chars().take(MAX_TEXT).collect();
-    if clipped.trim().is_empty() {
-        None
-    } else {
-        Some(clipped)
-    }
 }
 
 // ---------------------------------------------------------------- k-means
@@ -1232,10 +1355,52 @@ mod tests {
 
     #[test]
     fn item_text_skips_blank() {
-        assert!(item_text("", "  ").is_none());
-        assert!(item_text("title", "").is_some());
+        assert!(item_text("", "  ", "").is_none());
+        assert!(item_text("title", "", "").is_some());
         // clipped to MAX_TEXT characters
-        let long = item_text(&"x".repeat(5000), "").unwrap();
+        let long = item_text(&"x".repeat(5000), "", "").unwrap();
         assert_eq!(long.chars().count(), MAX_TEXT);
+    }
+
+    #[test]
+    fn import_titles_never_reach_the_text_tower() {
+        // The exact strings a bulk import writes. On their own they say nothing,
+        // and 100 of them embed to the same vector.
+        assert!(generic_title("screenshot · Aug 05 2025 · twitter"));
+        assert!(generic_title("Screenshot_20260914-001152.png"));
+        assert!(generic_title("Image taken on May 24, 2025"));
+        assert!(generic_title("saved image"));
+        assert!(!generic_title("Dumbbell chest press form check"));
+        // A generic title alone leaves nothing to embed.
+        assert!(item_text("screenshot · Aug 05 2025 · twitter", "", "").is_none());
+        // But the explainer still carries the content.
+        let t = item_text("screenshot · Aug 05 2025 · twitter", "", "A neon poster of a skull.").unwrap();
+        assert!(t.contains("skull"));
+        assert!(!t.contains("Aug 05"), "the import title leaked into the text: {t}");
+    }
+
+    #[test]
+    fn explainer_digest_reads_the_content_keys() {
+        let data = r#"{"summary":"A neon poster.","mood":"electric","style_dna":"glitch","color_words":"cyan, ink","tags":["poster","neon"],"visuals":"grey text"}"#;
+        let d = explainer_digest(data);
+        assert!(d.contains("A neon poster."));
+        assert!(d.contains("poster, neon"));
+        assert!(!d.contains("grey text"), "visuals is scene description, not topic");
+        assert!(explainer_digest("not json").is_empty());
+    }
+
+    #[test]
+    fn screenshots_lean_on_words_and_scenes_on_pixels() {
+        // Two orthogonal towers: the blend must flip which one dominates.
+        let mut img = vec![0.0f32; DIM];
+        img[0] = 1.0;
+        let mut txt = vec![0.0f32; DIM];
+        txt[1] = 1.0;
+
+        let scene = blend(Some(img.clone()), Some(txt.clone()), false).unwrap();
+        assert!(scene[0] > scene[1], "a photo should follow its pixels");
+
+        let shot = blend(Some(img), Some(txt), true).unwrap();
+        assert!(shot[1] > shot[0], "a screenshot should follow its words");
     }
 }
