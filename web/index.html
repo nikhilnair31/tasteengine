@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#c80044">
+<title>Taste Engine</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png?v=20260822-crimson">
+<link rel="stylesheet" href="/style.css?v=20261020-font">
+</head>
+<body>
+<div id="app">
+
+  <!-- LOGIN -->
+  <section id="login" class="screen hidden">
+    <div class="login-card">
+      <div class="logo-mark"><img src="/assets/taste-engine-logo-alt.png" alt="Taste Engine mark"></div>
+      <h1>taste engine</h1>
+      <p class="tagline">your saved sense of self</p>
+      <form id="login-form">
+        <input id="login-user" type="text" placeholder="username" autocomplete="username" required>
+        <input id="login-pass" type="password" placeholder="password" autocomplete="current-password" required>
+        <button type="submit" class="btn-primary">enter</button>
+      </form>
+      <p id="login-error" class="error hidden"></p>
+    </div>
+  </section>
+
+  <!-- MAIN -->
+  <section id="main" class="screen hidden">
+
+    <header class="topbar">
+      <div class="brand side-brand"><img class="brand-mark" src="/assets/taste-engine-logo-transparent.png" alt=""> <span>taste engine</span></div>
+      <div class="side-group" role="group" aria-label="views">
+        <button id="btn-search-side" class="ghost side-row" title="search saved posts" aria-label="search saved posts"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span class="sl">posts</span></button>
+        <button id="btn-followups" class="ghost side-row" title="follow-ups" aria-label="follow-ups"><span class="ic"><svg viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2z"/></svg></span><span class="sl">follow-ups</span></button>
+        <button id="btn-cleanup" class="ghost side-row" title="cleanup similar posts" aria-label="cleanup similar posts"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17h8M3 13h15M3 9h17M3 5h4"/><path d="M13 21h.01M17 21h.01"/></svg></span><span class="sl">cleanup</span></button>
+        <button id="btn-groups" class="ghost side-row" title="browse similarity groups" aria-label="similarity groups"><span class="ic"><svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span><span class="sl">groups</span></button>
+        <button id="btn-trash" class="ghost side-row" title="trash — deleted posts (auto-purge)" aria-label="trash"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span><span class="sl">trash</span></button>
+        <button id="avatar" class="avatar side-row" title="settings" aria-label="settings"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="sl">settings</span></button>
+      </div>
+    </header>
+
+    <!-- FULL-WIDTH TOOLBAR over the grid: search + inspire + filters + sort + density -->
+    <div class="toolbar" id="toolbar">
+      <form id="search-form" class="searchbox">
+        <input id="search-q" type="search" placeholder="search the vault…" autocomplete="off">
+        <button type="submit" class="submit" title="search"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span></button>
+        <button id="btn-inspire" type="button" class="inspire-btn" title="inspire — build a design direction from your saved taste" aria-label="inspire"><span class="ic"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span></button>
+        <button id="btn-view-refresh" type="button" class="inspire-btn hidden" title="refresh current view" aria-label="refresh current view"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span></button>
+      </form>
+      <div class="tool-actions" role="group" aria-label="vault tools">
+        <button id="btn-filters" class="ghost tool-btn" title="filters"><span class="ic" id="filters-ic"><svg viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span></button>
+        <button id="btn-sort" class="ghost tool-btn" title="sort" aria-label="sort"><span class="ic" id="sort-ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h9M8 18h5"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span></button>
+        <button id="btn-gridsize" class="ghost tool-btn" title="grid size: regular" aria-label="grid size"><span class="ic"><svg viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M3 11V3h8v8zm0 10v-8h8v8zm10-10V3h8v8zm0 10v-8h8v8z"/></svg></span></button>
+      </div>
+    </div>
+
+    <!-- FILTER + SORT PANELS (dropdowns under the toolbar) -->
+<div id="sort-menu" class="topbar-panel sort-panel hidden" role="region" aria-label="sort options">
+        <div class="sort-options">
+          <button type="button" class="sort-option" data-sort="random">random</button>
+          <button type="button" class="sort-option" data-sort="alpha_asc">alphabetical A to Z</button>
+          <button type="button" class="sort-option" data-sort="alpha_desc">alphabetical Z to A</button>
+          <button type="button" class="sort-option" data-sort="recent">recent to last</button>
+          <button type="button" class="sort-option" data-sort="oldest">last to recent</button>
+          <button type="button" class="sort-option" data-sort="frequent">frequently clicked</button>
+        </div>
+      </div>
+      <div id="filters" class="filters collapsed">
+        <div class="fgroup" data-group="kind">
+          <span class="flabel">kind</span>
+          <div class="chips" id="chips-kind"></div>
+        </div>
+        <div class="fgroup" data-group="status">
+          <span class="flabel">status</span>
+          <div class="chips" id="chips-fu-status"></div>
+        </div>
+        <div class="fgroup" data-group="hue">
+          <span class="flabel">hue</span>
+          <div class="chips" id="chips-hue">
+            <button class="chip hue-trigger" id="hue-trigger" title="pick a hue">all</button>
+          </div>
+          <div class="hue-popup hidden" id="hue-popup">
+            <div class="hue-popup-grid" id="hue-popup-grid"></div>
+            <div class="hue-free">
+              <div class="hue-pad" id="hue-pad"><div class="hue-pad-marker" id="hue-pad-marker"></div></div>
+              <div class="hue-spectrum" id="hue-spectrum"><div class="hue-spec-marker" id="hue-spec-marker"></div></div>
+              <div class="hue-hex-row">
+                <input id="hue-hex" class="hue-hex-input" maxlength="7" placeholder="#cf e4b9" spellcheck="false">
+                <button class="hue-apply" id="hue-apply">apply</button>
+              </div>
+              <div class="hue-snap" id="hue-snap"></div>
+            </div>
+            <button class="hue-popup-clear" id="hue-popup-clear">clear</button>
+          </div>
+        </div>
+        <div class="fgroup" data-group="source">
+          <span class="flabel">source</span>
+          <div class="chips" id="chips-source"></div>
+        </div>
+        <div class="fgroup" data-group="tag">
+          <span class="flabel">tag</span>
+          <div class="chips" id="chips-tag"></div>
+        </div>
+        <div class="fmeta">
+          <button id="f-clear" class="linkbtn hidden">clear filters</button>
+        </div>
+      </div>
+
+    <!-- FOLLOWUPS VIEW (replaces the grid while open) -->
+    <div id="followups" class="followups-view hidden" role="region" aria-label="follow-ups">
+      <div class="followups-tools">
+        <h2 class="followups-title">follow-ups</h2>
+        <p id="followups-status" class="import-status" aria-live="polite"></p>
+        <div class="followups-tool-actions">
+          <button id="followups-refresh" type="button" class="ghost" title="refresh follow-ups" aria-label="refresh follow-ups"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span></button>
+          
+        </div>
+      </div>
+      <div id="followups-list" class="followups-list"></div>
+    </div>
+
+    <!-- RECIPE READER (opens when you click a recipe follow-up) -->
+    <div id="recipe-reader" class="recipe-reader hidden" role="dialog" aria-modal="true" aria-label="recipe reader">
+      <div id="recipes-card" class="rr-card">
+        <div class="rr-head">
+          <span class="fu-chip fu-kind-recipe"><svg viewBox="0 0 24 24" class="fu-ic"><path d="M8 3h2M12 3h2M16 3h1"/><path d="M5 9h14M5 9l1 11h12l1-11"/><path d="M19 10h2a2 2 0 0 1 0 4h-2"/></svg><span class="fu-kind-label">recipe</span></span>
+          <button id="rr-close" type="button" class="ghost" title="close recipe" aria-label="close recipe"><span class="ic"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button>
+        </div>
+        <h2 id="rr-title" class="rr-title"></h2>
+        <div id="rr-meta" class="rr-meta"></div>
+        <div id="rr-body" class="rr-body"></div>
+      </div>
+    </div>
+
+    <!-- TRASH VIEW (replaces the grid while open) -->
+    <div id="trash" class="trash-view hidden" role="region" aria-label="trash">
+      <div class="trash-tools">
+        <h2 class="trash-title">trash</h2>
+        <p id="trash-status" class="import-status" aria-live="polite"></p>
+        <div class="trash-tool-actions">
+          <button id="trash-restore-all" type="button" class="ghost" title="restore everything back to the vault" aria-label="restore all trash"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 16h16v3H4z"/><path d="M12 15V7"/><path d="M12 7l-4 3 8 0"/></svg></span></button>
+          <button id="trash-purge" type="button" class="ghost danger" title="permanently delete everything past the retention window" aria-label="purge trash"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span></button>
+          <button id="trash-refresh" type="button" class="ghost" title="refresh trash" aria-label="refresh trash"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span></button>
+          
+        </div>
+      </div>
+      <div id="trash-list" class="trash-list"></div>
+    </div>
+
+    <!-- CLEANUP VIEW (replaces the grid while open) -->
+    <div id="cleanup" class="cleanup-view hidden" role="region" aria-label="cleanup similar posts">
+      <div class="cleanup-tools">
+        <h2 class="cleanup-title">cleanup</h2>
+        <p id="cleanup-status" class="import-status" aria-live="polite"></p>
+        <button id="cleanup-type-delete" type="button" class="tool-btn hidden" title="delete all non-suggested in this type" aria-label="delete all non-suggested in this type"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span></button>
+        <div class="cleanup-tool-actions">
+          <button id="btn-cleanup-filters" type="button" class="ghost tool-btn" title="filter cleanup groups" aria-label="filter cleanup groups"><span class="ic"><svg viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span></button>
+          <button id="btn-cleanup-sort" type="button" class="ghost tool-btn" title="sort cleanup groups" aria-label="sort cleanup groups"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h9M8 18h5"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span></button>
+        </div>
+      </div>
+      <div id="cleanup-filter-menu" class="cleanup-panel hidden" role="region" aria-label="filter cleanup groups">
+        <div class="fgroup" data-group="evidence">
+          <span class="flabel">similar</span>
+          <div class="chips" id="chips-cleanup-evidence"></div>
+        </div>
+      </div>
+      <div id="cleanup-sort-menu" class="cleanup-panel hidden" role="region" aria-label="sort cleanup groups">
+        <div class="sort-options" id="cleanup-sort-options"></div>
+      </div>
+      <div id="cleanup-groups" class="cleanup-groups"></div>
+      <div id="cleanup-bulk-bar" class="hidden" role="toolbar" aria-label="cleanup delete actions">
+        <span id="cleanup-bulk-count" class="bulk-count">0</span>
+        <button type="button" id="cleanup-delete" class="bulk-btn danger" title="delete marked posts" aria-label="delete marked posts"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span></button>
+      </div>
+    </div>
+
+    <!-- GROUPS VIEW (replaces the grid while open) -->
+    <div id="groups" class="groups-view hidden" role="region" aria-label="similarity groups">
+      <div class="groups-tools">
+        <h2 class="groups-title">groups</h2>
+        <p id="groups-status" class="import-status" aria-live="polite"></p>
+        <div class="groups-tool-actions">
+          <button id="groups-shuffle" type="button" class="ghost" title="open a random group" aria-label="open a random group"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg></span></button>
+        </div>
+      </div>
+      <div id="groups-detail" class="groups-detail">
+        <div id="groups-items" class="groups-items"></div>
+      </div>
+    </div>
+
+    <!-- INSPIRE VIEW (replaces the grid while open) -->
+    <div id="inspire" class="inspire-view hidden" role="region" aria-label="design inspiration">
+      <div id="inspire-tools" class="inspire-tools">
+        <p id="insp-status" class="import-status" aria-live="polite"></p>
+        <div id="inspire-tool-actions" class="inspire-tool-actions">
+          <button id="inspire-export" type="button" class="ghost hidden" title="download this page as a self-contained HTML file" aria-label="download inspire export"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span></button>
+          <button id="inspire-copy" type="button" class="ghost hidden" title="copy direction" aria-label="copy direction"><span class="ic"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></span></button>
+          <button id="inspire-close" type="button" class="ghost" title="close inspire" aria-label="close inspire"><span class="ic"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button>
+        </div>
+      </div>
+      <div id="brief-bar" class="brief-bar">
+        <input id="brief-q" type="search" maxlength="600" placeholder="ask for an idea — a site, an app, a game, a print… or leave it empty" autocomplete="off">
+        <button id="brief-go" type="button" class="brief-go" title="build a brief from this ask">go</button>
+        <button id="brief-suggest" type="button" class="inspire-btn" title="suggest an idea from the vault" aria-label="suggest an idea"><span class="ic"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span></button>
+      </div>
+      <div id="inspire-preview" class="inspire-preview hidden">
+        <div class="inspire-preview-row">
+          <input id="inspire-preview-q" type="search" maxlength="600" placeholder="what should this direction become? a site hero, a profile pic, a poster…" autocomplete="off">
+          <button id="inspire-preview-btn" type="button" class="inspire-btn" title="render 3 previews of this direction" aria-label="render previews"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span></button>
+          <button id="inspire-preview-toggle" type="button" title="show or hide the renders" aria-expanded="false" aria-controls="inspire-preview-shots"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+        </div>
+        <p id="inspire-preview-status" class="import-status"></p>
+        <div id="inspire-preview-shots" class="inspire-preview-shots"></div>
+      </div>
+      <div id="inspire-results" class="inspire-results hidden"></div>
+    </div>
+
+    <!-- COMMAND BAR (FAB experiment — replaces topbar) -->
+    <div id="cmd-overlay" class="cmd-overlay hidden">
+      <div class="cmd-bar">
+        <form id="cmd-search-form" class="cmd-searchbox">
+          <input id="cmd-search-q" type="search" placeholder="search the vault… or describe something to inspire" autocomplete="off">
+          <button type="submit" title="search"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span></button>
+          <button id="cmd-inspire" type="button" class="inspire-btn" title="inspire"><span class="ic"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span></button>
+        </form>
+        <div class="cmd-chips">
+          <button id="cmd-posts" class="cmd-chip" title="back to posts"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>posts</button>
+          <button id="cmd-filters" class="cmd-chip" title="filters"><span class="ic"><svg viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span>filters</button>
+          <button id="cmd-sort" class="cmd-chip" title="sort"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h9M8 18h5"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span>sort</button>
+          <button id="cmd-gridsize" class="cmd-chip" title="grid size"><span class="ic"><svg viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M3 11V3h8v8zm0 10v-8h8v8zm10-10V3h8v8zm0 10v-8h8v8z"/></svg></span>density</button>
+          <button id="cmd-followups" class="cmd-chip" title="follow-ups"><span class="ic"><svg viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2z"/></svg></span>follow-ups</button>
+          <button id="cmd-trash" class="cmd-chip" title="trash"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>trash</button>
+          <button id="cmd-cleanup" class="cmd-chip" title="cleanup"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17h8M3 13h15M3 9h17M3 5h4"/><path d="M13 21h.01M17 21h.01"/></svg></span>cleanup</button>
+          <button id="cmd-groups" class="cmd-chip" title="groups"><span class="ic"><svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>groups</button>
+          <button id="cmd-settings" class="cmd-chip" title="settings"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>settings</button>
+        </div>
+        <div id="cmd-panel-slot" class="cmd-panel-slot"></div>
+      </div>
+      <button id="cmd-close" class="cmd-close" title="close"><span class="ic"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button>
+    </div>
+    <div id="fab-wrap" class="fab-wrap">
+      <div class="fab-fan" id="fab-fan" role="group" aria-label="quick actions">
+              <button type="button" class="fab-mini" data-cmd="cmd-settings" title="settings"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span></button>
+              <button type="button" class="fab-mini" data-cmd="cmd-cleanup" title="cleanup"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17h8M3 13h15M3 9h17M3 5h4"/><path d="M13 21h.01M17 21h.01"/></svg></span></button>
+              <button type="button" class="fab-mini" data-cmd="cmd-followups" title="follow-ups"><span class="ic"><svg viewBox="0 0 24 24"><path d="M19 21l-8-5-8 5V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/></svg></span></button>
+              <button type="button" class="fab-mini" data-cmd="cmd-inspire" title="inspire"><span class="ic"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span></button>
+            </div>
+      <button id="fab" class="fab" title="search & commands" aria-label="search and commands">
+        <span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+      </button>
+    </div>
+    <div id="grid" class="grid"></div>
+    <div id="loadmore-wrap" class="loadmore-wrap hidden">
+      <span id="load-spinner" class="load-spinner" aria-hidden="true"><img src="/assets/taste-engine-logo-transparent.png" alt=""></span>
+    </div>
+    <div id="scroll-sentinel"></div>
+    <p id="empty" class="empty hidden">nothing here yet.</p>
+
+    <!-- BULK SELECTION BAR (ctrl/cmd + click on cards) -->
+    <div id="bulk-bar" class="hidden" role="toolbar" aria-label="bulk actions">
+      <span id="bulk-count" class="bulk-count">0 selected</span>
+      <button type="button" id="bulk-inspire" class="bulk-btn" title="build a direction from the selected posts" aria-label="inspire from selection">inspire from 0</button>
+      <button type="button" id="bulk-delete" class="bulk-btn danger" title="delete the selected cards" aria-label="delete selection">delete 0</button>
+      <button type="button" id="bulk-clear" class="bulk-btn ghost" title="clear selection" aria-label="clear selection">clear</button>
+    </div>
+
+    <!-- DETAIL OVERLAY -->
+    <div id="detail" class="overlay hidden">
+      <div class="detail-card">
+        <button id="detail-close" class="close" title="close"><span class="ic"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button>
+        <div id="detail-body"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS OVERLAY -->
+    <div id="settings" class="settings-view hidden">
+        <div class="settings-tools">
+          <h2 class="settings-title">settings</h2>
+          <div class="settings-tool-actions">
+            
+          </div>
+        </div>
+        <div class="settings-body">
+          <div class="setting-row">
+            <span class="setting-label">username</span>
+            <output id="settings-username" class="setting-value"></output>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">saved</span>
+            <output id="meta-count" class="setting-value">0</output>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">theme</span>
+            <div class="seg" id="seg-theme">
+              <button type="button" class="seg-btn" data-v="dark">dark</button>
+              <button type="button" class="seg-btn" data-v="light">light</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">animations</span>
+            <button type="button" class="switch" id="sw-anim" role="switch" aria-checked="true"><span class="knob"></span></button>
+          </div>
+          <div class="settings-sub">detail view</div>
+          <div class="setting-row">
+            <span class="setting-label">sidebar open by default</span>
+            <button type="button" class="switch" id="sw-sidebar" role="switch" aria-checked="false"><span class="knob"></span></button>
+          </div>
+          <div class="settings-sub">sections open by default</div>
+          <div class="setting-row"><span class="setting-label">meta</span><button type="button" class="switch" id="sw-row-meta" role="switch" aria-checked="false"><span class="knob"></span></button></div>
+
+          <div class="setting-row"><span class="setting-label">note</span><button type="button" class="switch" id="sw-row-note" role="switch" aria-checked="false"><span class="knob"></span></button></div>
+
+          <div class="setting-row"><span class="setting-label">explainer</span><button type="button" class="switch" id="sw-row-explainer" role="switch" aria-checked="false"><span class="knob"></span></button></div>
+          <div class="setting-row"><span class="setting-label">similar</span><button type="button" class="switch" id="sw-row-similar" role="switch" aria-checked="true"><span class="knob"></span></button></div>
+          <div class="settings-foot">
+            <button id="btn-settings-reset" class="ghost">reset to defaults</button>
+            <button id="btn-settings-logout" class="ghost danger settings-logout">logout</button>
+          </div>
+        </div>
+    </div>
+
+  </section>
+</div>
+
+<script src="/app.js?v=20261020-font"></script>
+</body>
+</html>

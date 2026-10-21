@@ -1,0 +1,208 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: fmt and clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      # Not blocking: the tree is not rustfmt-clean (654 hunks, mostly
+      # pre-existing). Reformatting it wholesale would bury every real change in
+      # noise, so the job reports the drift and keeps going. Make this blocking
+      # once someone runs `cargo fmt` on an otherwise quiet tree.
+      - name: cargo fmt
+        working-directory: backend
+        continue-on-error: true
+        run: cargo fmt --check
+      # Warnings are not errors here: this code carries documented allowances and
+      # clippy grows new lints every release. A real compile error still fails.
+      - name: cargo clippy
+        working-directory: backend
+        run: cargo clippy --release --bins
+
+  test:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - name: cargo test
+        working-directory: backend
+        run: cargo test --release --bin taste-engine-rs
+
+  weights:
+    name: weight fetching and checksums
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The two weights are 580MB of release assets, so the transfer itself is
+      # not exercised here. What IS exercised is the logic around it: a 404 must
+      # leave nothing behind, a checksum mismatch must be deleted and reported,
+      # and check-models.sh must refuse a corrupted file. Fake files, throwaway
+      # copies of the tree, no real weights needed.
+      - name: a 404 leaves no file behind
+        run: |
+          set -euo pipefail
+          dir=$(mktemp -d)
+          chmod 777 "$dir"
+          mkdir -p "$dir/scripts" "$dir/backend/models"
+          cp scripts/fetch-weights.sh scripts/check-models.sh "$dir/scripts/"
+          cp backend/models/CHECKSUMS.txt "$dir/backend/models/"
+          ( cd "$dir" && python3 -m http.server 8099 --bind 127.0.0.1 >/dev/null 2>&1 & echo $! > server.pid )
+          sleep 1
+          set +e
+          WEIGHTS_BASE=http://127.0.0.1:8099 TV_WEIGHTS_MIN_BYTES=1 "$dir/scripts/fetch-weights.sh" > "$dir/out.txt" 2>&1
+          code=$?
+          set -e
+          kill "$(cat "$dir/server.pid")" 2>/dev/null || true
+          cat "$dir/out.txt"
+          [ "$code" -ne 0 ] || { echo "FAIL: fetch-weights.sh succeeded against an empty server"; exit 1; }
+          [ ! -f "$dir/backend/models/clip_text.onnx" ] || { echo "FAIL: left a file behind"; exit 1; }
+          echo "ok: nonzero exit and no partial file"
+
+      - name: a checksum mismatch is rejected and removed
+        run: |
+          set -euo pipefail
+          dir=$(mktemp -d)
+          chmod 777 "$dir"
+          mkdir -p "$dir/scripts" "$dir/backend/models" "$dir/serve"
+          cp scripts/fetch-weights.sh scripts/check-models.sh "$dir/scripts/"
+          head -c 4096 /dev/urandom > "$dir/serve/clip_text.onnx"
+          cp "$dir/serve/clip_text.onnx" "$dir/serve/clip_vision.onnx"
+          printf '%064d  clip_text.onnx\n%064d  clip_vision.onnx\n' 0 0 > "$dir/backend/models/CHECKSUMS.txt"
+          ( cd "$dir/serve" && python3 -m http.server 8098 --bind 127.0.0.1 >/dev/null 2>&1 & echo $! > "$dir/server.pid" )
+          sleep 1
+          set +e
+          WEIGHTS_BASE=http://127.0.0.1:8098 TV_WEIGHTS_MIN_BYTES=1 "$dir/scripts/fetch-weights.sh" > "$dir/out.txt" 2>&1
+          code=$?
+          set -e
+          kill "$(cat "$dir/server.pid")" 2>/dev/null || true
+          cat "$dir/out.txt"
+          [ "$code" -ne 0 ] || { echo "FAIL: a mismatched download was accepted"; exit 1; }
+          grep -q "checksum mismatch" "$dir/out.txt" || { echo "FAIL: no mismatch reported"; exit 1; }
+          [ ! -f "$dir/backend/models/clip_text.onnx" ] || { echo "FAIL: mismatched file was kept"; exit 1; }
+          echo "ok: mismatch reported, file removed"
+
+      - name: check-models.sh rejects a corrupted file
+        run: |
+          set -euo pipefail
+          dir=$(mktemp -d)
+          mkdir -p "$dir/scripts" "$dir/backend/models"
+          cp scripts/check-models.sh "$dir/scripts/"
+          cp backend/models/CHECKSUMS.txt backend/models/vocab.json backend/models/merges.txt "$dir/backend/models/"
+          head -c 64 /dev/urandom > "$dir/backend/models/clip_text.onnx"
+          head -c 64 /dev/urandom > "$dir/backend/models/clip_vision.onnx"
+          set +e
+          "$dir/scripts/check-models.sh" > "$dir/out.txt" 2>&1
+          code=$?
+          set -e
+          cat "$dir/out.txt"
+          [ "$code" -ne 0 ] || { echo "FAIL: check-models.sh accepted corrupt weights"; exit 1; }
+          echo "ok: corrupt weights refused"
+
+      - name: the tracked tokenizer files match the manifest
+        run: |
+          set -euo pipefail
+          cd backend/models
+          sha256sum -c CHECKSUMS.txt --ignore-missing
+
+  image:
+    name: image contract
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build
+        run: docker build -t taste-engine:ci .
+
+      # Best effort: while the repo is private the release assets need a token,
+      # so a failure here is expected and not fatal. When it succeeds the smoke
+      # test also exercises the real CLIP path instead of skipping it.
+      - name: fetch weights
+        id: weights
+        run: |
+          if ./scripts/fetch-weights.sh; then
+            echo "have=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=0" >> "$GITHUB_OUTPUT"
+            echo "::warning::weights unavailable, the model path will be skipped"
+          fi
+
+      - name: boot with nothing but a data dir
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/te-ci && chmod 777 /tmp/te-ci
+          docker run -d --name te-ci -p 8770:8770 \
+            -e TV_USER=ci -e TV_PASS=ci \
+            -v /tmp/te-ci:/data \
+            -v "$PWD/backend/models:/app/models:ro" \
+            taste-engine:ci
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8770/healthz || true)
+            [ "$code" = "200" ] && break
+            sleep 1
+          done
+          [ "$code" = "200" ] || { docker logs te-ci; exit 1; }
+
+      - name: contract, api and container checks
+        env:
+          TV_URL: http://127.0.0.1:8770
+          TV_USER: ci
+          TV_PASS: ci
+          TV_CONTAINER: te-ci
+          TV_STRICT_MODELS: ${{ steps.weights.outputs.have }}
+        run: ./scripts/smoke-image.sh
+
+      - name: data survives a restart
+        run: |
+          set -euo pipefail
+          before=$(curl -s -u ci:ci 'http://127.0.0.1:8770/api/items?limit=1' | python3 -c 'import json,sys;print(json.load(sys.stdin)["total"])')
+          docker restart te-ci >/dev/null
+          code=""
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8770/healthz || true)
+            [ "$code" = "200" ] && break
+            sleep 1
+          done
+          [ "$code" = "200" ] || { echo "FAIL: did not come back after a restart"; docker logs te-ci; exit 1; }
+          after=$(curl -s -u ci:ci 'http://127.0.0.1:8770/api/items?limit=1' | python3 -c 'import json,sys;print(json.load(sys.stdin)["total"])')
+          echo "items before=$before after=$after"
+          [ "$before" = "$after" ] || { echo "FAIL: item count changed across a restart"; docker logs te-ci; exit 1; }
+          [ "$after" -gt 0 ] || { echo "FAIL: the vault is empty after a restart"; exit 1; }
+
+      - name: the cli works against the container
+        run: |
+          set -euo pipefail
+          out=$(docker exec -e TE_URL=http://127.0.0.1:8770 -e TV_USER=ci -e TV_PASS=ci te-ci /app/te sources)
+          echo "$out" | head -3
+          [ "$(echo "$out" | wc -l)" -ge 13 ] || { echo "FAIL: te sources printed fewer than 13 lines"; exit 1; }
+          token=$(curl -s -u ci:ci -H 'Content-Type: application/json' -d '{"name":"ci"}' \
+            http://127.0.0.1:8770/api/tokens | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+          docker exec -e TE_URL=http://127.0.0.1:8770 -e TE_TOKEN="$token" te-ci /app/te ls > /dev/null \
+            || { echo "FAIL: the cli could not use a bearer token"; exit 1; }
+          echo "ok: bearer token accepted by the cli"
+
+      - name: logs
+        if: always()
+        run: docker logs te-ci || true

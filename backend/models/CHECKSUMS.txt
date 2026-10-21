@@ -1,0 +1,14 @@
+# sha256 of every file the CLIP embedder loads, in `sha256sum -c` format.
+#
+# clip_text.onnx and clip_vision.onnx are release assets, not git objects.
+# vocab.json and merges.txt are tracked. Verify all four from this directory:
+#
+#   cd backend/models && sha256sum -c CHECKSUMS.txt
+#
+# These are the exact bytes the project is tested against. A download that
+# does not match is not the model this code was written for — fail rather
+# than embed garbage.
+7a679b0965f4c3e4e295353c8ca4a912f8a51ec55a66f8157765b6ecd0f3e566  clip_text.onnx
+760bf6f12eb9b698dcd4e13a44208d14ae71a70b0ad76e542fe1c2427277e2cb  clip_vision.onnx
+3f0c4f7d2086b61b38487075278ea9ed04edb53a03cbb045b86c27190fa8fb69  vocab.json
+9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a  merges.txt

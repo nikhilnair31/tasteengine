@@ -1,0 +1,10 @@
+# keep the build context to the release binary + prompt files
+target/*
+!target/release/
+target/release/*
+!target/release/taste-engine-rs
+models/
+scripts/
+.git/
+*.zip
+*.png

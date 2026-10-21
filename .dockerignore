@@ -1,0 +1,16 @@
+# Whitelist: the image build compiles the crate from source, so the build stage
+# needs the manifest, the sources, schema.sql (include_str! at compile time) and
+# the prompt files. Target artifacts are not needed.
+*
+!backend
+backend/*
+!backend/Cargo.toml
+!backend/Cargo.lock
+!backend/schema.sql
+!backend/src
+!backend/src/**
+!backend/app
+!backend/app/**
+# the SPA is baked into the image so `docker run` alone serves a UI
+!web
+!web/**

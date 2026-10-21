@@ -1,0 +1,24 @@
+[package]
+name = "taste-engine-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ab_glyph = "0.2.32"
+axum = { version = "0.8.9", features = ["multipart"] }
+base64 = "0.23.1"
+csv = "1.4.0"
+image = "0.25.10"
+ndarray = "0.17.2"
+ort = { version = "2.0.0-rc.13", features = ["load-dynamic"] }
+regex = "1.13.1"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+libc = "0.2"
+tokio = { version = "1.53.2", features = ["full"] }
+tower-http = { version = "0.7.1", features = ["fs"] }
+ureq = "2"
+url = "2.5.8"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }

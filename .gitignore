@@ -1,0 +1,37 @@
+# Secrets and local config
+.env
+
+# Local data: vault db, media, exports
+data/
+*.db
+*.db-*
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# CLIP ONNX weights: 600MB, fetched with `make weights`, never committed
+backend/models/*.onnx
+vendor/
+
+# Build output
+backend/target/
+dist/*.zip
+dist/*.xpi
+*.apk
+node_modules/
+.DS_Store
+
+# Generated asset manifests carry absolute local paths
+web/assets/*/manifest.json
+
+# Android build output
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+
+# Personal verification screenshots
+docs/verify/

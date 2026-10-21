@@ -1,0 +1,118 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: version from the tag
+        id: v
+        # GITHUB_REF_NAME is an env var, not template interpolation, so nothing
+        # from the ref is spliced into the shell. Validate the shape anyway: a tag
+        # is the only input here.
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          case "$tag" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "tag must look like v1.2.3, got '$GITHUB_REF_NAME'"; exit 1 ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.v.outputs.tag }}
+            ghcr.io/${{ github.repository }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.v.outputs.tag }}
+
+      # The weights cannot be built here (they are 580MB of PyTorch exports), but
+      # the manifest that consumers verify them against ships with every release.
+      - name: attach the weight checksums to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # only for a tag build: workflow_dispatch has no release to attach to
+          case "$TAG" in v*) ;; *) echo "not a tag build, skipping"; exit 0 ;; esac
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "$TAG" --notes-file CHANGELOG.md --verify-tag
+          gh release upload "$TAG" backend/models/CHECKSUMS.txt --clobber
+
+  verify-published:
+    name: the published image runs
+    needs: publish
+    runs-on: ubuntu-latest
+    # This is the only job that tests the artifact people actually pull, rather
+    # than an image built in the same runner.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: pull it back
+        env:
+          TAG: ${{ needs.publish.outputs.tag }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${{ github.repository }}:$TAG"
+          docker pull "$image"
+          docker tag "$image" taste-engine:published
+
+      - name: boot it
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/te-rel && chmod 777 /tmp/te-rel
+          docker run -d --name te-rel -p 8770:8770 \
+            -e TV_USER=ci -e TV_PASS=ci \
+            -v /tmp/te-rel:/data \
+            taste-engine:published
+          code=""
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8770/healthz || true)
+            [ "$code" = "200" ] && break
+            sleep 1
+          done
+          [ "$code" = "200" ] || { docker logs te-rel; echo "FAIL: the published image does not answer /healthz"; exit 1; }
+
+      - name: contract checks against the published image
+        env:
+          TV_URL: http://127.0.0.1:8770
+          TV_USER: ci
+          TV_PASS: ci
+          TV_CONTAINER: te-rel
+          TV_STRICT_MODELS: "0"
+        run: ./scripts/smoke-image.sh
+
+      - name: logs
+        if: always()
+        run: docker logs te-rel || true

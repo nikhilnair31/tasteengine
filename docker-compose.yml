@@ -1,0 +1,38 @@
+services:
+  taste-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+    image: taste-engine:rs
+    container_name: taste-engine
+    env_file: .env
+    # Container paths are set here, not in .env: a copied .env.example describes a
+    # direct (non-Docker) run, and its relative paths would resolve inside the
+    # image and fail. Secrets and model names still come from env_file.
+    environment:
+      PORT: "8770"
+      TV_BASE: /app
+      TV_DATA_DIR: /data
+      TV_FRONTEND_DIR: /app/frontend
+      TV_MODELS_DIR: /app/models
+      TV_PROMPTS_DIR: /app/prompts
+    ports:
+      - "0.0.0.0:8770:8770"
+    volumes:
+      # vault: vault.db, media, exports
+      - ./data:/data
+      # vanilla-JS SPA, hot-edited — no image rebuild needed
+      - ./web:/app/frontend:ro
+      # CLIP text + vision ONNX
+      - ./backend/models:/app/models:ro
+      # onnxruntime lives in the image now (pinned, checksummed). Override it
+      # with ORT_DYLIB_PATH only if you need a different build.
+    restart: unless-stopped
+    mem_limit: 2g
+    memswap_limit: 2304m
+
+networks:
+  # user-defined bridge: the default bridge has no working DNS
+  default:
+    name: taste-engine-net

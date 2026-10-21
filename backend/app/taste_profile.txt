@@ -1,0 +1,16 @@
+# Your taste profile for the explainer. Optional.
+#
+# The backend splices this file into explainer_prompt.txt at the
+# {{TASTE_PROFILE}} marker. Lines that start with # are dropped. Leave the file
+# empty (only comments) and the explainer infers taste from each saved item
+# alone, with no profile at all.
+#
+# Keep it short and concrete. Claims in why_it_fits are grounded in this file,
+# so vague lines produce vague explainers. A useful shape:
+#
+# - Who: what you do and why you save (a builder, a photographer, a musician).
+# - Color signature: the palette you return to, and what you never want.
+# - Typography: the type you collect.
+# - Mood: the atmospheres you return to, and the ones you avoid.
+# - Materials and hardware: what you actually make things from.
+# - Brands and media anchors: names that keep showing up in your saves.
