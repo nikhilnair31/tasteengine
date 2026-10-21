@@ -29,6 +29,9 @@ const SHOT_IMG_W: f32 = 0.2;
 const SHOT_TEXT_W: f32 = 0.8;
 const MAX_TEXT: usize = 2000;
 const MAX_ITERS: usize = 25;
+/// Bump when the fusion RULES change, not when an item's content changes. Every
+/// stored signature then stops matching once and the vault re-fuses in one pass.
+const FUSE_V: &str = "v2";
 
 /// Tags that every card gets from ingestion, so they say nothing about a group.
 const GENERIC_TAGS: &[&str] = &[
@@ -164,12 +167,23 @@ fn text_vec(joined: &str) -> Option<Vec<f32>> {
 /// content, and they are near-identical across hundreds of rows, so they must
 /// never reach the text tower.
 fn generic_title(t: &str) -> bool {
+    const PLATFORMS: &[&str] = &[
+        "instagram", "twitter", "x", "reddit", "pinterest", "tumblr", "youtube", "tiktok",
+        "threads", "bluesky", "cosmos", "steam", "spotify", "arena", "are.na", "web", "link",
+        "note", "post", "image", "video",
+    ];
     let l = t.trim().to_lowercase();
-    l.is_empty()
+    if l.is_empty()
         || l == "saved image"
         || l.starts_with("image taken on")
         || l.starts_with("untitled")
         || (l.contains("screenshot") && l.len() < 80)
+    {
+        return true;
+    }
+    // "Instagram post", "twitter", "x post": the platform is not a subject.
+    let words: Vec<&str> = l.split_whitespace().collect();
+    words.len() <= 2 && words.first().is_some_and(|w| PLATFORMS.contains(w))
 }
 
 /// The words a fusion should read: the post's own text, its title when the
@@ -308,7 +322,7 @@ fn fuse_sig(conn: &Connection, item_id: &str) -> String {
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .unwrap_or((0, 0));
-    format!("{tl}:{tx}:{ex}:{mc}:{mr}")
+    format!("{FUSE_V}:{tl}:{tx}:{ex}:{mc}:{mr}")
 }
 
 /// Rewrite item_embeds with the fused vector. `limit` caps the items touched
@@ -353,6 +367,7 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
             ))
         }) {
             for (id, title, text, data, sig, prev) in rows.flatten() {
+                let sig = format!("{FUSE_V}:{sig}");
                 if !force && sig == prev {
                     skipped += 1;
                     continue;
@@ -1370,7 +1385,13 @@ mod tests {
         assert!(generic_title("Screenshot_20260914-001152.png"));
         assert!(generic_title("Image taken on May 24, 2025"));
         assert!(generic_title("saved image"));
+        // A platform is not a subject: 56 rows titled "Instagram post" once
+        // formed their own 48-item group on that string alone.
+        assert!(generic_title("Instagram post"));
+        assert!(generic_title("x post"));
+        assert!(generic_title("twitter"));
         assert!(!generic_title("Dumbbell chest press form check"));
+        assert!(!generic_title("Instagram model with a red jacket"));
         // A generic title alone leaves nothing to embed.
         assert!(item_text("screenshot · Aug 05 2025 · twitter", "", "").is_none());
         // But the explainer still carries the content.
