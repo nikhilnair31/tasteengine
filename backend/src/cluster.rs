@@ -187,14 +187,18 @@ fn generic_title(t: &str) -> bool {
 }
 
 /// The words a fusion should read: the post's own text, its title when the
-/// title says something, and the explainer's digest of what the media shows.
-fn item_text(title: &str, text: &str, digest: &str) -> Option<String> {
+/// title says something, the OCR of the media (a screenshot's real subject) and
+/// the explainer's digest of what the media shows.
+fn item_text(title: &str, text: &str, digest: &str, ocr: &str) -> Option<String> {
     let mut parts: Vec<&str> = Vec::new();
     if !generic_title(title) {
         parts.push(title.trim());
     }
     if !text.trim().is_empty() {
         parts.push(text.trim());
+    }
+    if !ocr.trim().is_empty() {
+        parts.push(ocr.trim());
     }
     if !digest.trim().is_empty() {
         parts.push(digest.trim());
@@ -229,6 +233,18 @@ fn explainer_digest(data: &str) -> String {
         }
     }
     out.join(". ")
+}
+
+/// All OCR text the item's media carries, joined. Video frames and screenshots
+/// both land in `media.ocr_text`.
+fn item_ocr(conn: &Connection, item_id: &str) -> String {
+    conn.query_row(
+        "SELECT COALESCE(GROUP_CONCAT(ocr_text, ' '), '') FROM media \
+         WHERE item_id=? AND COALESCE(ocr_text,'') != ''",
+        [item_id],
+        |r| r.get::<_, String>(0),
+    )
+    .unwrap_or_default()
 }
 
 fn explainer_digest_for(conn: &Connection, item_id: &str) -> String {
@@ -299,8 +315,9 @@ pub fn fused_vec(conn: &Connection, item_id: &str) -> Option<Vec<f32>> {
         .unwrap_or_default();
     let shot = is_screenshot(conn, item_id, &title);
     let digest = explainer_digest_for(conn, item_id);
+    let ocr = item_ocr(conn, item_id);
     let img = media_mean(conn, item_id);
-    let txt = item_text(&title, &text, &digest).and_then(|t| text_vec(&t));
+    let txt = item_text(&title, &text, &digest, &ocr).and_then(|t| text_vec(&t));
     blend(img, txt, shot)
 }
 
@@ -315,6 +332,13 @@ fn fuse_sig(conn: &Connection, item_id: &str) -> String {
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .unwrap_or((0, 0, 0));
+    let ol: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(LENGTH(ocr_text)),0) FROM media WHERE item_id=?",
+            [item_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
     let (mc, mr): (i64, i64) = conn
         .query_row(
             "SELECT COUNT(*), COALESCE(MAX(rowid),0) FROM media WHERE item_id=?",
@@ -322,7 +346,7 @@ fn fuse_sig(conn: &Connection, item_id: &str) -> String {
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .unwrap_or((0, 0));
-    format!("{FUSE_V}:{tl}:{tx}:{ex}:{mc}:{mr}")
+    format!("{FUSE_V}:{tl}:{tx}:{ex}:{ol}:{mc}:{mr}")
 }
 
 /// Rewrite item_embeds with the fused vector. `limit` caps the items touched
@@ -337,6 +361,7 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
         title: String,
         text: String,
         digest: String,
+        ocr: String,
         shot: bool,
     }
     // sig and prev sig both come from SQL, so the scan is one pass. The sig
@@ -346,8 +371,11 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
     let mut skipped = 0usize;
     if let Ok(mut stmt) = conn.prepare(
         "SELECT i.id, COALESCE(i.title,''), COALESCE(i.text,''), COALESCE(e.data,''), \
+         COALESCE((SELECT GROUP_CONCAT(m.ocr_text,' ') FROM media m \
+                   WHERE m.item_id=i.id AND COALESCE(m.ocr_text,'')!=''),''), \
          COALESCE(LENGTH(i.title),0) || ':' || COALESCE(LENGTH(i.text),0) || ':' || \
          COALESCE(LENGTH(e.data),0) || ':' || \
+         COALESCE((SELECT SUM(LENGTH(m.ocr_text)) FROM media m WHERE m.item_id=i.id),0) || ':' || \
          (SELECT COUNT(*) FROM media m WHERE m.item_id=i.id) || ':' || \
          (SELECT COALESCE(MAX(rowid),0) FROM media m WHERE m.item_id=i.id) AS sig, \
          COALESCE(f.sig,'') AS prev \
@@ -364,9 +392,10 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
                 r.get::<_, String>(3)?,
                 r.get::<_, String>(4)?,
                 r.get::<_, String>(5)?,
+                r.get::<_, String>(6)?,
             ))
         }) {
-            for (id, title, text, data, sig, prev) in rows.flatten() {
+            for (id, title, text, data, ocr, sig, prev) in rows.flatten() {
                 let sig = format!("{FUSE_V}:{sig}");
                 if !force && sig == prev {
                     skipped += 1;
@@ -379,6 +408,7 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
                     title,
                     text,
                     digest: explainer_digest(&data),
+                    ocr,
                     shot,
                 });
             }
@@ -415,7 +445,7 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
         batch.clear();
     };
     for (i, c) in pending.iter().enumerate() {
-        let joined = item_text(&c.title, &c.text, &c.digest);
+        let joined = item_text(&c.title, &c.text, &c.digest, &c.ocr);
         match joined {
             Some(t) => {
                 slots.push(i);
@@ -464,6 +494,47 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
         crate::search::invalidate_index();
     }
     (fused, skipped, failed, remaining)
+}
+
+/// OCR screenshot media that has none yet, one bounded batch per boot.
+///
+/// A screenshot's pixels say "phone UI"; its words live in the image. The fuse
+/// signature carries the OCR length, so the next pass re-fuses these items with
+/// real content. A media row that OCRs to nothing stores a single space, so it
+/// is not retried on every boot.
+pub fn ocr_screenshots(conn: &Connection, limit: usize) -> usize {
+    let mut rows: Vec<(String, String)> = Vec::new();
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT m.id, m.file FROM media m JOIN items i ON i.id=m.item_id \
+         WHERE m.kind='image' AND COALESCE(m.file,'')!='' \
+           AND COALESCE(m.ocr_text,'')='' \
+           AND (lower(COALESCE(i.title,'')) LIKE '%screenshot%' \
+                OR lower(COALESCE(m.original_name,'')) LIKE '%screenshot%') \
+           AND (i.deleted_at IS NULL OR i.deleted_at='') \
+         ORDER BY m.rowid LIMIT ?1",
+    ) {
+        if let Ok(mapped) = stmt.query_map([limit as i64], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        }) {
+            rows = mapped.flatten().collect();
+        }
+    }
+    if rows.is_empty() {
+        return 0;
+    }
+    let dir = crate::mediaio::media_dir();
+    let mut done = 0usize;
+    for (id, file) in rows {
+        let text = crate::mediaio::image_ocr(&dir.join(&file), 80);
+        let stored = if text.trim().is_empty() { " ".to_string() } else { text };
+        if conn
+            .execute("UPDATE media SET ocr_text=? WHERE id=?", params![stored, id])
+            .is_ok()
+        {
+            done += 1;
+        }
+    }
+    done
 }
 
 // ---------------------------------------------------------------- k-means
@@ -1273,6 +1344,12 @@ pub fn start_fitter(db_path: String) {
             let last_n: i64 = conn
                 .query_row("SELECT COALESCE(MAX(n),0) FROM cluster_runs", [], |r| r.get(0))
                 .unwrap_or(0);
+            // Screenshots first: their OCR is the only content some items have,
+            // and fusion reads it (one bounded batch per boot).
+            let ocr = ocr_screenshots(&conn, 400);
+            if ocr > 0 {
+                eprintln!("taste-engine-rs: OCR'd {ocr} screenshots");
+            }
             // One-time migration: give every item its fused (image+text) vector
             // before clustering. Steady state this skips everything.
             let mut migrated = 0usize;
@@ -1370,10 +1447,10 @@ mod tests {
 
     #[test]
     fn item_text_skips_blank() {
-        assert!(item_text("", "  ", "").is_none());
-        assert!(item_text("title", "", "").is_some());
+        assert!(item_text("", "  ", "", "").is_none());
+        assert!(item_text("title", "", "", "").is_some());
         // clipped to MAX_TEXT characters
-        let long = item_text(&"x".repeat(5000), "", "").unwrap();
+        let long = item_text(&"x".repeat(5000), "", "", "").unwrap();
         assert_eq!(long.chars().count(), MAX_TEXT);
     }
 
@@ -1393,9 +1470,9 @@ mod tests {
         assert!(!generic_title("Dumbbell chest press form check"));
         assert!(!generic_title("Instagram model with a red jacket"));
         // A generic title alone leaves nothing to embed.
-        assert!(item_text("screenshot · Aug 05 2025 · twitter", "", "").is_none());
+        assert!(item_text("screenshot · Aug 05 2025 · twitter", "", "", "").is_none());
         // But the explainer still carries the content.
-        let t = item_text("screenshot · Aug 05 2025 · twitter", "", "A neon poster of a skull.").unwrap();
+        let t = item_text("screenshot · Aug 05 2025 · twitter", "", "A neon poster of a skull.", "").unwrap();
         assert!(t.contains("skull"));
         assert!(!t.contains("Aug 05"), "the import title leaked into the text: {t}");
     }

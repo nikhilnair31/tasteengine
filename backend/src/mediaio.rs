@@ -720,6 +720,37 @@ pub fn delete_media_files(row: &Value) {
     }
 }
 
+/// OCR one still image with the tesseract CLI. Newline-joined deduped lines,
+/// capped at `max_lines`. A screenshot of a post keeps its meaning in this text:
+/// the image vector only knows it is a phone UI.
+pub fn image_ocr(path: &Path, max_lines: usize) -> String {
+    if !path.exists() {
+        return String::new();
+    }
+    let out = match std::process::Command::new("tesseract")
+        .arg(path)
+        .arg("stdout")
+        .output()
+    {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        _ => return String::new(),
+    };
+    let mut seen: Vec<String> = Vec::new();
+    for line in out.lines() {
+        let line = line.trim();
+        if line.len() < 3 || line.chars().all(|c| !c.is_alphanumeric()) {
+            continue;
+        }
+        if !seen.iter().any(|s: &String| s == line) {
+            seen.push(line.to_string());
+        }
+        if seen.len() >= max_lines {
+            break;
+        }
+    }
+    seen.join("\n")
+}
+
 /// ocr.video_text port: OCR up to max_frames frames spread across a video.
 /// Uses the tesseract CLI (rapidocr is python-only); newline-joined deduped
 /// lines, capped at 60 — same shape python stores in media.ocr_text.
