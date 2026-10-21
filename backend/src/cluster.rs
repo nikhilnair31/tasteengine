@@ -21,17 +21,11 @@ use serde_json::{json, Map, Value};
 const DIM: usize = 512;
 const IMG_W: f32 = 0.7;
 const TEXT_W: f32 = 0.3;
-/// A screenshot of a post carries the post's words, not a scene. Its image
-/// vector describes a phone UI, so two unrelated screenshots look identical to
-/// the image tower and would cluster together on nothing. Flip the weights for
-/// those items and let the words decide.
-const SHOT_IMG_W: f32 = 0.15;
-const SHOT_TEXT_W: f32 = 0.85;
 const MAX_TEXT: usize = 2000;
 const MAX_ITERS: usize = 25;
 /// Bump when the fusion RULES change, not when an item's content changes. Every
 /// stored signature then stops matching once and the vault re-fuses in one pass.
-const FUSE_V: &str = "v3";
+const FUSE_V: &str = "v4";
 
 /// Tags that every card gets from ingestion, so they say nothing about a group.
 const GENERIC_TAGS: &[&str] = &[
@@ -286,13 +280,58 @@ fn is_screenshot(conn: &Connection, item_id: &str, title: &str) -> bool {
     (1.9..=4.0).contains(&ratio)
 }
 
-/// Weighted sum of the two towers, normalized. Screenshots lean on words.
-fn blend(img: Option<Vec<f32>>, txt: Option<Vec<f32>>, shot: bool) -> Option<Vec<f32>> {
-    let (iw, tw) = if shot { (SHOT_IMG_W, SHOT_TEXT_W) } else { (IMG_W, TEXT_W) };
+/// FNV-1a over one token. Stable across runs and platforms, which is all a
+/// hashed bag-of-words needs.
+fn hash_token(token: &str) -> usize {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in token.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    (h % DIM as u64) as usize
+}
+
+/// Hashed bag-of-words over the item's text, normalized.
+///
+/// CLIP's text tower saturates: two unrelated sentences still score about 0.8
+/// cosine, and a page of OCR noise scores high against everything. That is fine
+/// for "does this match the phrase I typed" and useless for telling one
+/// screenshot from another, which is exactly what groups must do. Lexical
+/// overlap is the honest signal there.
+fn bow_vec(text: &str) -> Option<Vec<f32>> {
+    let mut v = vec![0.0f32; DIM];
+    let mut used = false;
+    for raw in text.split(|c: char| !c.is_alphanumeric()) {
+        let tok = raw.to_lowercase();
+        if tok.len() < 3 || STOP_WORDS.contains(&tok.as_str()) {
+            continue;
+        }
+        v[hash_token(&tok)] += 1.0;
+        used = true;
+    }
+    if used && normalize(&mut v) {
+        Some(v)
+    } else {
+        None
+    }
+}
+
+/// The item's vector. A scene blends its image mean with the CLIP text tower.
+/// A screenshot does not: its picture only says "phone UI", and its words go
+/// through the lexical space so two unrelated posts cannot look identical.
+fn blend(
+    img: Option<Vec<f32>>,
+    txt: Option<Vec<f32>>,
+    bow: Option<Vec<f32>>,
+    shot: bool,
+) -> Option<Vec<f32>> {
+    if shot {
+        return bow.or(txt).or(img);
+    }
     match (img, txt) {
         (Some(mut a), Some(b)) => {
             for (x, y) in a.iter_mut().zip(b.iter()) {
-                *x = *x * iw + *y * tw;
+                *x = *x * IMG_W + *y * TEXT_W;
             }
             if normalize(&mut a) {
                 Some(a)
@@ -316,9 +355,14 @@ pub fn fused_vec(conn: &Connection, item_id: &str) -> Option<Vec<f32>> {
     let shot = is_screenshot(conn, item_id, &title);
     let digest = explainer_digest_for(conn, item_id);
     let ocr = item_ocr(conn, item_id);
+    let joined = item_text(&title, &text, &digest, &ocr);
+    if shot {
+        // No image mean and no CLIP text call: a screenshot is its words.
+        return joined.as_deref().and_then(bow_vec);
+    }
     let img = media_mean(conn, item_id);
-    let txt = item_text(&title, &text, &digest, &ocr).and_then(|t| text_vec(&t));
-    blend(img, txt, shot)
+    let txt = joined.and_then(|t| text_vec(&t));
+    blend(img, txt, None, false)
 }
 
 fn fuse_sig(conn: &Connection, item_id: &str) -> String {
@@ -425,8 +469,10 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
     for c in &pending {
         imgs.push(media_mean(conn, &c.id));
     }
-    // 2. text side: one batched ONNX call per 32 items
+    // 2. text side: one batched ONNX call per 32 items. Screenshots skip it —
+    // their words go through the lexical space instead.
     let mut txts: Vec<Option<Vec<f32>>> = vec![None; pending.len()];
+    let mut bows: Vec<Option<Vec<f32>>> = vec![None; pending.len()];
     let mut slots: Vec<usize> = Vec::new();
     let mut batch: Vec<String> = Vec::new();
     let flush = |slots: &mut Vec<usize>, batch: &mut Vec<String>, txts: &mut Vec<Option<Vec<f32>>>| {
@@ -448,6 +494,10 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
         let joined = item_text(&c.title, &c.text, &c.digest, &c.ocr);
         match joined {
             Some(t) => {
+                if c.shot {
+                    bows[i] = bow_vec(&t);
+                    continue;
+                }
                 slots.push(i);
                 batch.push(t);
                 if batch.len() >= 32 {
@@ -464,7 +514,8 @@ pub fn backfill_fused(conn: &Connection, limit: usize, force: bool) -> (usize, u
     for (i, c) in pending.iter().enumerate() {
         let img = imgs[i].take();
         let txt = txts[i].take();
-        let vec = blend(img, txt, c.shot);
+        let bow = bows[i].take();
+        let vec = blend(img, txt, bow, c.shot);
         match vec {
             Some(v) => {
                 let _ = conn.execute(
@@ -1490,6 +1541,17 @@ mod tests {
     }
 
     #[test]
+    fn bow_separates_topics_that_clip_cannot() {
+        let yoga = bow_vec("alo yoga shorts fabric composition review").unwrap();
+        let film = bow_vec("zach snyder director cut discussion thread").unwrap();
+        let same = bow_vec("alo yoga shorts fabric composition review").unwrap();
+        let cos = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(x, y)| x * y).sum::<f32>();
+        assert!((cos(&yoga, &same) - 1.0).abs() < 1e-5, "identical text must match itself");
+        assert!(cos(&yoga, &film) < 0.2, "unrelated text must not collide: {}", cos(&yoga, &film));
+        assert!(bow_vec("the and for with").is_none(), "stop words alone are not content");
+    }
+
+    #[test]
     fn screenshots_lean_on_words_and_scenes_on_pixels() {
         // Two orthogonal towers: the blend must flip which one dominates.
         let mut img = vec![0.0f32; DIM];
@@ -1497,10 +1559,12 @@ mod tests {
         let mut txt = vec![0.0f32; DIM];
         txt[1] = 1.0;
 
-        let scene = blend(Some(img.clone()), Some(txt.clone()), false).unwrap();
+        let scene = blend(Some(img.clone()), Some(txt.clone()), None, false).unwrap();
         assert!(scene[0] > scene[1], "a photo should follow its pixels");
 
-        let shot = blend(Some(img), Some(txt), true).unwrap();
-        assert!(shot[1] > shot[0], "a screenshot should follow its words");
+        let mut bow = vec![0.0f32; DIM];
+        bow[2] = 1.0;
+        let shot = blend(Some(img), Some(txt), Some(bow), true).unwrap();
+        assert!(shot[2] > shot[0], "a screenshot should follow its words, not its pixels");
     }
 }
