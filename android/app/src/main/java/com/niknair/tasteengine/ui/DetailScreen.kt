@@ -64,7 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.niknair.tasteengine.LocalTaste
-import com.niknair.tasteengine.Mori
+import com.niknair.tasteengine.AppFont
 import com.niknair.tasteengine.net.Api
 import com.niknair.tasteengine.net.Followup
 import com.niknair.tasteengine.net.ItemCard
@@ -237,7 +237,7 @@ fun DetailScreen(vm: VaultVm, itemId: String, onBack: () -> Unit, openDetail: (S
                                     text = title,
                                     color = t.text,
                                     fontSize = 19.sp,
-                                    fontFamily = Mori,
+                                    fontFamily = AppFont,
                                     fontWeight = FontWeight.SemiBold,
                                     lineHeight = 25.sp,
                                 )
@@ -253,7 +253,7 @@ fun DetailScreen(vm: VaultVm, itemId: String, onBack: () -> Unit, openDetail: (S
                                         d.card.savedAt.take(10),
                                         color = t.muted,
                                         fontSize = 11.sp,
-                                        fontFamily = Mori,
+                                        fontFamily = AppFont,
                                     )
                                 }
                                 if (d.card.author.isNotEmpty()) {
@@ -262,7 +262,7 @@ fun DetailScreen(vm: VaultVm, itemId: String, onBack: () -> Unit, openDetail: (S
                                         d.card.author.take(46),
                                         color = t.muted,
                                         fontSize = 11.sp,
-                                        fontFamily = Mori,
+                                        fontFamily = AppFont,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
@@ -283,7 +283,7 @@ fun DetailScreen(vm: VaultVm, itemId: String, onBack: () -> Unit, openDetail: (S
                                         d.card.note,
                                         color = t.text,
                                         fontSize = 13.sp,
-                                        fontFamily = Mori,
+                                        fontFamily = AppFont,
                                         lineHeight = 19.sp,
                                     )
                                 }
@@ -302,13 +302,13 @@ fun DetailScreen(vm: VaultVm, itemId: String, onBack: () -> Unit, openDetail: (S
                                             "still pulling the post…",
                                             color = t.muted,
                                             fontSize = 13.sp,
-                                            fontFamily = Mori,
+                                            fontFamily = AppFont,
                                         )
                                         d.card.text.isBlank() -> Text(
                                             "explainer not generated.",
                                             color = t.muted,
                                             fontSize = 13.sp,
-                                            fontFamily = Mori,
+                                            fontFamily = AppFont,
                                         )
                                     }
                                     if (d.card.text.isNotBlank()) {
@@ -319,7 +319,7 @@ fun DetailScreen(vm: VaultVm, itemId: String, onBack: () -> Unit, openDetail: (S
                                             d.card.text,
                                             color = t.text,
                                             fontSize = 13.sp,
-                                            fontFamily = Mori,
+                                            fontFamily = AppFont,
                                             lineHeight = 19.sp,
                                         )
                                     }
@@ -448,10 +448,10 @@ fun DetailScreen(vm: VaultVm, itemId: String, onBack: () -> Unit, openDetail: (S
             onDismissRequest = { showDelete = false },
             containerColor = t.surface,
             title = {
-                Text("delete post?", color = t.text, fontFamily = Mori, fontSize = 16.sp)
+                Text("delete post?", color = t.text, fontFamily = AppFont, fontSize = 16.sp)
             },
             text = {
-                Text("moves to trash", color = t.muted, fontFamily = Mori, fontSize = 13.sp)
+                Text("moves to trash", color = t.muted, fontFamily = AppFont, fontSize = 13.sp)
             },
             confirmButton = {
                 FlatButton(
@@ -629,7 +629,7 @@ private fun GalleryOverlay(
                 text = "${pagerState.currentPage + 1} / ${media.size}",
                 color = Color(0xFFFDF6F6),
                 fontSize = 12.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 28.dp)
@@ -663,7 +663,7 @@ private fun SmallTag(text: String) {
             .border(1.dp, t.lineSoft, RoundedCornerShape(0.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
-        Text(text, color = t.muted, fontSize = 11.sp, fontFamily = Mori, maxLines = 1)
+        Text(text, color = t.muted, fontSize = 11.sp, fontFamily = AppFont, maxLines = 1)
     }
 }
 
@@ -684,14 +684,14 @@ private fun FollowupRow(f: Followup, onOpen: () -> Unit) {
             text = f.title.ifEmpty { f.url },
             color = t.text,
             fontSize = 13.sp,
-            fontFamily = Mori,
+            fontFamily = AppFont,
             lineHeight = 18.sp,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
         if (f.why.isNotEmpty()) {
             Spacer(Modifier.height(3.dp))
-            Text(f.why, color = t.muted, fontSize = 11.sp, fontFamily = Mori, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(f.why, color = t.muted, fontSize = 11.sp, fontFamily = AppFont, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -713,7 +713,7 @@ private fun LinkRow(label: String, url: String, onOpen: () -> Unit) {
                 label,
                 color = t.text,
                 fontSize = 13.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -722,7 +722,7 @@ private fun LinkRow(label: String, url: String, onOpen: () -> Unit) {
                 url.removePrefix("https://").removePrefix("http://").take(60),
                 color = t.muted,
                 fontSize = 11.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -762,7 +762,7 @@ private fun MiniCard(item: ItemCard, modifier: Modifier = Modifier, onClick: () 
                 item.title.ifEmpty { item.text.take(60) },
                 color = t.text,
                 fontSize = 11.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -805,7 +805,7 @@ private fun ExplainValue(v: Any) {
     val t = LocalTaste.current
     when (v) {
         is String -> if (v.isNotBlank()) {
-            Text(v, color = t.text, fontSize = 13.sp, fontFamily = Mori, lineHeight = 19.sp)
+            Text(v, color = t.text, fontSize = 13.sp, fontFamily = AppFont, lineHeight = 19.sp)
         }
         is JSONArray -> {
             val list = mutableListOf<Any>()
@@ -828,7 +828,7 @@ private fun ExplainValue(v: Any) {
                                         ttl,
                                         color = t.text,
                                         fontSize = 13.sp,
-                                        fontFamily = Mori,
+                                        fontFamily = AppFont,
                                         fontWeight = FontWeight.SemiBold,
                                     )
                                 }
@@ -839,7 +839,7 @@ private fun ExplainValue(v: Any) {
                                         body,
                                         color = t.text,
                                         fontSize = 13.sp,
-                                        fontFamily = Mori,
+                                        fontFamily = AppFont,
                                         lineHeight = 19.sp,
                                     )
                                 }
@@ -866,7 +866,7 @@ private fun ExplainValue(v: Any) {
                 }
             }
         }
-        else -> Text(v.toString(), color = t.text, fontSize = 13.sp, fontFamily = Mori)
+        else -> Text(v.toString(), color = t.text, fontSize = 13.sp, fontFamily = AppFont)
     }
 }
 
@@ -874,8 +874,8 @@ private fun ExplainValue(v: Any) {
 private fun BulletRow(text: String) {
     val t = LocalTaste.current
     Row {
-        Text("–", color = t.accentStrong, fontSize = 13.sp, fontFamily = Mori)
+        Text("–", color = t.accentStrong, fontSize = 13.sp, fontFamily = AppFont)
         Spacer(Modifier.width(8.dp))
-        Text(text, color = t.text, fontSize = 13.sp, fontFamily = Mori, lineHeight = 19.sp)
+        Text(text, color = t.text, fontSize = 13.sp, fontFamily = AppFont, lineHeight = 19.sp)
     }
 }

@@ -75,7 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.niknair.tasteengine.LocalTaste
-import com.niknair.tasteengine.Mori
+import com.niknair.tasteengine.AppFont
 import com.niknair.tasteengine.net.Api
 import com.niknair.tasteengine.net.ItemCard
 import com.niknair.tasteengine.vm.VaultVm
@@ -387,7 +387,7 @@ fun VaultCard(item: ItemCard, onClick: () -> Unit) {
                             bodyText.take(260).trim(),
                             color = t.text,
                             fontSize = 12.sp,
-                            fontFamily = Mori,
+                            fontFamily = AppFont,
                             lineHeight = 16.sp,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -406,7 +406,7 @@ fun VaultCard(item: ItemCard, onClick: () -> Unit) {
                         text = item.kind.ifEmpty { "saved" }.uppercase(),
                         color = t.muted,
                         fontSize = 11.sp,
-                        fontFamily = Mori,
+                        fontFamily = AppFont,
                         letterSpacing = 1.5.sp,
                         modifier = Modifier.align(Alignment.Center),
                     )

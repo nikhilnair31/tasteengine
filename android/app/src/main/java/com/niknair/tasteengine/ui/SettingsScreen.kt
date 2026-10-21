@@ -33,7 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niknair.tasteengine.LocalTaste
-import com.niknair.tasteengine.Mori
+import com.niknair.tasteengine.AppFont
 import com.niknair.tasteengine.Session
 import com.niknair.tasteengine.net.Api
 import com.niknair.tasteengine.net.ApiException
@@ -128,7 +128,7 @@ fun SettingsScreen(
                 )
             }
             if (status != null) {
-                Text(status ?: "", color = t.muted, fontSize = 12.sp, fontFamily = Mori)
+                Text(status ?: "", color = t.muted, fontSize = 12.sp, fontFamily = AppFont)
             }
 
             Spacer(Modifier.height(10.dp))
@@ -147,7 +147,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(10.dp))
             SectionLabel("appearance")
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("dark theme", color = t.text, fontSize = 13.sp, fontFamily = Mori)
+                Text("dark theme", color = t.text, fontSize = 13.sp, fontFamily = AppFont)
                 Spacer(Modifier.weight(1f))
                 SquareSwitch(
                     checked = dark,
@@ -170,7 +170,7 @@ fun SettingsScreen(
                 "taste engine android · v0.9.3",
                 color = t.muted,
                 fontSize = 11.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
             )
             Spacer(Modifier.height(30.dp))
         }
@@ -191,10 +191,10 @@ private fun SettingRow(title: String, subtitle: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = t.text, fontSize = 14.sp, fontFamily = Mori, fontWeight = FontWeight.Medium)
+            Text(title, color = t.text, fontSize = 14.sp, fontFamily = AppFont, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(2.dp))
-            Text(subtitle, color = t.muted, fontSize = 11.sp, fontFamily = Mori)
+            Text(subtitle, color = t.muted, fontSize = 11.sp, fontFamily = AppFont)
         }
-        Text("›", color = t.muted, fontSize = 18.sp, fontFamily = Mori)
+        Text("›", color = t.muted, fontSize = 18.sp, fontFamily = AppFont)
     }
 }

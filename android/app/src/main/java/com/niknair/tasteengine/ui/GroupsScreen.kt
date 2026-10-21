@@ -41,7 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niknair.tasteengine.LocalTaste
-import com.niknair.tasteengine.Mori
+import com.niknair.tasteengine.AppFont
 import com.niknair.tasteengine.net.Api
 import com.niknair.tasteengine.net.ClusterGroup
 import com.niknair.tasteengine.net.ItemCard
@@ -263,7 +263,7 @@ private fun ShuffleBar(
             label,
             color = if (loading) t.muted else t.text,
             fontSize = 12.sp,
-            fontFamily = Mori,
+            fontFamily = AppFont,
             letterSpacing = 0.2.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

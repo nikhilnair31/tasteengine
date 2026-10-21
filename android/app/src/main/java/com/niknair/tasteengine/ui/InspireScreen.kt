@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.niknair.tasteengine.LocalTaste
-import com.niknair.tasteengine.Mori
+import com.niknair.tasteengine.AppFont
 import com.niknair.tasteengine.net.Api
 import com.niknair.tasteengine.net.Brief
 import com.niknair.tasteengine.vm.VaultVm
@@ -129,7 +129,7 @@ fun InspireScreen(vm: VaultVm, openDetail: (String) -> Unit) {
             }
             val err = vm.briefError
             if (err != null) {
-                Text(err, color = t.danger, fontSize = 12.sp, fontFamily = Mori)
+                Text(err, color = t.danger, fontSize = 12.sp, fontFamily = AppFont)
             }
         }
 
@@ -183,10 +183,10 @@ private fun BriefBody(
                 items(brief.themes.size) { i ->
                     val th = brief.themes[i]
                     BriefCard {
-                        Text(th.name, color = t.accentStrong, fontSize = 14.sp, fontFamily = Mori, fontWeight = FontWeight.Medium)
+                        Text(th.name, color = t.accentStrong, fontSize = 14.sp, fontFamily = AppFont, fontWeight = FontWeight.Medium)
                         if (th.why.isNotEmpty()) {
                             Spacer(Modifier.height(3.dp))
-                            Text(th.why, color = t.muted, fontSize = 12.sp, fontFamily = Mori, lineHeight = 17.sp)
+                            Text(th.why, color = t.muted, fontSize = 12.sp, fontFamily = AppFont, lineHeight = 17.sp)
                         }
                     }
                 }
@@ -201,7 +201,7 @@ private fun BriefBody(
                     val f = brief.families[i]
                     BriefCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(f.family, color = t.text, fontSize = 15.sp, fontFamily = Mori, fontWeight = FontWeight.Medium)
+                            Text(f.family, color = t.text, fontSize = 15.sp, fontFamily = AppFont, fontWeight = FontWeight.Medium)
                             Spacer(Modifier.width(8.dp))
                             Mark(f.role.ifEmpty { "body" }, color = t.muted)
                             if (f.match.isNotEmpty()) {
@@ -211,7 +211,7 @@ private fun BriefBody(
                         }
                         if (f.why.isNotEmpty()) {
                             Spacer(Modifier.height(3.dp))
-                            Text(f.why, color = t.muted, fontSize = 12.sp, fontFamily = Mori, lineHeight = 17.sp)
+                            Text(f.why, color = t.muted, fontSize = 12.sp, fontFamily = AppFont, lineHeight = 17.sp)
                         }
                     }
                 }
@@ -221,7 +221,7 @@ private fun BriefBody(
                             brief.scaleNote,
                             color = t.muted,
                             fontSize = 12.sp,
-                            fontFamily = Mori,
+                            fontFamily = AppFont,
                             lineHeight = 17.sp,
                             modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
                         )
@@ -236,7 +236,7 @@ private fun BriefBody(
                             brief.shape,
                             color = t.text,
                             fontSize = 13.sp,
-                            fontFamily = Mori,
+                            fontFamily = AppFont,
                             lineHeight = 19.sp,
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
@@ -245,10 +245,10 @@ private fun BriefBody(
                 items(brief.parts.size) { i ->
                     val p = brief.parts[i]
                     BriefCard {
-                        Text(p.name, color = t.accentStrong, fontSize = 13.sp, fontFamily = Mori, fontWeight = FontWeight.Medium)
+                        Text(p.name, color = t.accentStrong, fontSize = 13.sp, fontFamily = AppFont, fontWeight = FontWeight.Medium)
                         if (p.what.isNotEmpty()) {
                             Spacer(Modifier.height(3.dp))
-                            Text(p.what, color = t.muted, fontSize = 12.sp, fontFamily = Mori, lineHeight = 17.sp)
+                            Text(p.what, color = t.muted, fontSize = 12.sp, fontFamily = AppFont, lineHeight = 17.sp)
                         }
                     }
                 }
@@ -262,14 +262,14 @@ private fun BriefBody(
                             "${i + 1}",
                             color = t.accentStrong,
                             fontSize = 13.sp,
-                            fontFamily = Mori,
+                            fontFamily = AppFont,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.width(22.dp),
                         )
                         Column {
-                            Text(s.step, color = t.text, fontSize = 13.sp, fontFamily = Mori)
+                            Text(s.step, color = t.text, fontSize = 13.sp, fontFamily = AppFont)
                             if (s.detail.isNotEmpty()) {
-                                Text(s.detail, color = t.muted, fontSize = 12.sp, fontFamily = Mori, lineHeight = 17.sp)
+                                Text(s.detail, color = t.muted, fontSize = 12.sp, fontFamily = AppFont, lineHeight = 17.sp)
                             }
                         }
                     }
@@ -280,7 +280,7 @@ private fun BriefBody(
                 items(brief.steal.size) { i ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                         Text("·", color = t.accentStrong, fontSize = 13.sp, modifier = Modifier.width(12.dp))
-                        Text(brief.steal[i], color = t.text, fontSize = 13.sp, fontFamily = Mori, lineHeight = 18.sp)
+                        Text(brief.steal[i], color = t.text, fontSize = 13.sp, fontFamily = AppFont, lineHeight = 18.sp)
                     }
                 }
             }
@@ -298,7 +298,7 @@ private fun BriefBody(
                             brief.buildPrompt,
                             color = t.text,
                             fontSize = 12.sp,
-                            fontFamily = Mori,
+                            fontFamily = AppFont,
                             lineHeight = 18.sp,
                         )
                         Spacer(Modifier.height(8.dp))
@@ -337,7 +337,7 @@ private fun BriefBody(
                                         r.title.take(60),
                                         color = t.muted,
                                         fontSize = 10.sp,
-                                        fontFamily = Mori,
+                                        fontFamily = AppFont,
                                         modifier = Modifier.padding(6.dp),
                                     )
                                 }
@@ -351,7 +351,7 @@ private fun BriefBody(
                                         r.ref.ifEmpty { "r$i" },
                                         color = Color(0xFFFDF6F6),
                                         fontSize = 9.sp,
-                                        fontFamily = Mori,
+                                        fontFamily = AppFont,
                                     )
                                 }
                             }
@@ -365,7 +365,7 @@ private fun BriefBody(
                         "open brainstorm · lens: ${brief.lensName}",
                         color = t.muted,
                         fontSize = 11.sp,
-                        fontFamily = Mori,
+                        fontFamily = AppFont,
                         modifier = Modifier.padding(top = 12.dp),
                     )
                 }
@@ -386,7 +386,7 @@ private fun BriefHead(brief: Brief) {
             brief.title.ifEmpty { "build brief" },
             color = t.text,
             fontSize = 21.sp,
-            fontFamily = Mori,
+            fontFamily = AppFont,
             fontWeight = FontWeight.Medium,
             lineHeight = 26.sp,
         )
@@ -396,7 +396,7 @@ private fun BriefHead(brief: Brief) {
                 brief.oneLiner,
                 color = t.muted,
                 fontSize = 13.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
                 lineHeight = 18.sp,
             )
         }
@@ -446,7 +446,7 @@ private fun PaletteRow(brief: Brief) {
                     sw.hex.lowercase(),
                     color = t.text,
                     fontSize = 10.sp,
-                    fontFamily = Mori,
+                    fontFamily = AppFont,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -454,7 +454,7 @@ private fun PaletteRow(brief: Brief) {
                     sw.role.ifEmpty { sw.name },
                     color = t.muted,
                     fontSize = 9.sp,
-                    fontFamily = Mori,
+                    fontFamily = AppFont,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

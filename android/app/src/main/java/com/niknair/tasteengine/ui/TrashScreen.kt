@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.niknair.tasteengine.LocalTaste
-import com.niknair.tasteengine.Mori
+import com.niknair.tasteengine.AppFont
 import com.niknair.tasteengine.net.Api
 import com.niknair.tasteengine.net.ItemCard
 import com.niknair.tasteengine.vm.VaultVm
@@ -116,7 +116,7 @@ fun TrashScreen(vm: VaultVm, onBack: () -> Unit) {
                 "auto-purge after ${vm.trashDays} days",
                 color = t.muted,
                 fontSize = 11.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 150.dp),
@@ -147,12 +147,12 @@ fun TrashScreen(vm: VaultVm, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { destroyTarget = null },
             containerColor = t.surface,
-            title = { Text("delete forever?", color = t.text, fontFamily = Mori, fontSize = 16.sp) },
+            title = { Text("delete forever?", color = t.text, fontFamily = AppFont, fontSize = 16.sp) },
             text = {
                 Text(
                     destroyTarget?.let { it.title.ifEmpty { it.url } } ?: "",
                     color = t.muted,
-                    fontFamily = Mori,
+                    fontFamily = AppFont,
                     fontSize = 13.sp,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -176,12 +176,12 @@ fun TrashScreen(vm: VaultVm, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showPurge = false },
             containerColor = t.surface,
-            title = { Text("empty the trash?", color = t.text, fontFamily = Mori, fontSize = 16.sp) },
+            title = { Text("empty the trash?", color = t.text, fontFamily = AppFont, fontSize = 16.sp) },
             text = {
                 Text(
                     "permanently deletes everything in the trash — no undo",
                     color = t.muted,
-                    fontFamily = Mori,
+                    fontFamily = AppFont,
                     fontSize = 13.sp,
                 )
             },
@@ -201,12 +201,12 @@ fun TrashScreen(vm: VaultVm, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showRestoreAll = false },
             containerColor = t.surface,
-            title = { Text("restore everything?", color = t.text, fontFamily = Mori, fontSize = 16.sp) },
+            title = { Text("restore everything?", color = t.text, fontFamily = AppFont, fontSize = 16.sp) },
             text = {
                 Text(
                     "brings every trashed post back to the vault",
                     color = t.muted,
-                    fontFamily = Mori,
+                    fontFamily = AppFont,
                     fontSize = 13.sp,
                 )
             },
@@ -253,7 +253,7 @@ private fun TrashRow(item: ItemCard, thumb: androidx.compose.ui.unit.Dp, onResto
                 item.title.ifEmpty { item.text.take(60) }.ifEmpty { item.url },
                 color = t.text,
                 fontSize = 13.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -262,7 +262,7 @@ private fun TrashRow(item: ItemCard, thumb: androidx.compose.ui.unit.Dp, onResto
                 "deleted ${item.deletedAt.take(10)}",
                 color = t.muted,
                 fontSize = 11.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
             )
         }
         IconButton(onClick = onRestore) {

@@ -29,7 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niknair.tasteengine.LocalTaste
-import com.niknair.tasteengine.Mori
+import com.niknair.tasteengine.AppFont
 import com.niknair.tasteengine.R
 import com.niknair.tasteengine.Session
 import com.niknair.tasteengine.net.Api
@@ -73,7 +73,7 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                 text = "personal vault",
                 color = t.fieldMuted,
                 fontSize = 11.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
                 letterSpacing = 2.sp,
             )
             Spacer(Modifier.height(28.dp))
@@ -105,7 +105,7 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                     text = error ?: "",
                     color = t.fieldMuted,
                     fontSize = 12.sp,
-                    fontFamily = Mori,
+                    fontFamily = AppFont,
                     textAlign = TextAlign.Center,
                 )
             }

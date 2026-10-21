@@ -57,7 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.niknair.tasteengine.LocalTaste
-import com.niknair.tasteengine.Mori
+import com.niknair.tasteengine.AppFont
 import com.niknair.tasteengine.net.Api
 import com.niknair.tasteengine.net.CleanupGroup
 import com.niknair.tasteengine.vm.VaultVm
@@ -123,7 +123,7 @@ fun CleanupScreen(vm: VaultVm, openDetail: (String) -> Unit, onBack: () -> Unit)
                             "scanned ${vm.cleanupScanned} · ${vm.cleanupGroups.size} groups",
                             color = t.muted,
                             fontSize = 11.sp,
-                            fontFamily = Mori,
+                            fontFamily = AppFont,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.widthIn(max = 170.dp),
@@ -134,7 +134,7 @@ fun CleanupScreen(vm: VaultVm, openDetail: (String) -> Unit, onBack: () -> Unit)
                                 "${vm.cleanupSelected.size} to delete",
                                 color = t.text,
                                 fontSize = 13.sp,
-                                fontFamily = Mori,
+                                fontFamily = AppFont,
                             )
                             Spacer(Modifier.weight(1f))
                             ToolIcon(onClick = { vm.clearCleanupSelection() }, desc = "clear selection") {
@@ -183,13 +183,13 @@ fun CleanupScreen(vm: VaultVm, openDetail: (String) -> Unit, onBack: () -> Unit)
             onDismissRequest = { autoChannel = null },
             containerColor = t.surface,
             title = {
-                Text("clean duplicates ($label)?", color = t.text, fontFamily = Mori, fontSize = 15.sp)
+                Text("clean duplicates ($label)?", color = t.text, fontFamily = AppFont, fontSize = 15.sp)
             },
             text = {
                 Text(
                     "keeps the best post in every matching group, moves the rest to trash",
                     color = t.muted,
-                    fontFamily = Mori,
+                    fontFamily = AppFont,
                     fontSize = 13.sp,
                 )
             },
@@ -238,7 +238,7 @@ private fun CleanSheet(onDismiss: () -> Unit, onPick: (String) -> Unit) {
                 "keeps the best post in each matching group, moves the rest to trash",
                 color = t.muted,
                 fontSize = 12.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
             )
             Spacer(Modifier.height(14.dp))
             FlowRow(
@@ -280,7 +280,7 @@ private fun CleanupGroupCard(
                 "${group.size}",
                 color = t.muted,
                 fontSize = 11.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
             )
         }
         Spacer(Modifier.height(6.dp))
@@ -329,7 +329,7 @@ private fun CleanupGroupCard(
                         member.title.ifEmpty { member.url },
                         color = t.text,
                         fontSize = 12.5.sp,
-                        fontFamily = Mori,
+                        fontFamily = AppFont,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )

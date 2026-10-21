@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.niknair.tasteengine.LocalTaste
-import com.niknair.tasteengine.Mori
+import com.niknair.tasteengine.AppFont
 import com.niknair.tasteengine.net.Api
 import com.niknair.tasteengine.net.Followup
 import com.niknair.tasteengine.vm.VaultVm
@@ -114,7 +114,7 @@ fun FollowupsScreen(vm: VaultVm, openDetail: (String) -> Unit) {
                 "${vm.followups.size} ${vm.followupStatus}",
                 color = t.muted,
                 fontSize = 11.sp,
-                fontFamily = Mori,
+                fontFamily = AppFont,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 130.dp),
@@ -230,7 +230,7 @@ private fun FollowupTile(f: Followup, vm: VaultVm, openDetail: (String) -> Unit)
                     f.title.ifEmpty { f.kind }.take(80),
                     color = t.muted,
                     fontSize = 11.sp,
-                    fontFamily = Mori,
+                    fontFamily = AppFont,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(9.dp),

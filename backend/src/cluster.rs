@@ -25,13 +25,13 @@ const TEXT_W: f32 = 0.3;
 /// vector describes a phone UI, so two unrelated screenshots look identical to
 /// the image tower and would cluster together on nothing. Flip the weights for
 /// those items and let the words decide.
-const SHOT_IMG_W: f32 = 0.2;
-const SHOT_TEXT_W: f32 = 0.8;
+const SHOT_IMG_W: f32 = 0.15;
+const SHOT_TEXT_W: f32 = 0.85;
 const MAX_TEXT: usize = 2000;
 const MAX_ITERS: usize = 25;
 /// Bump when the fusion RULES change, not when an item's content changes. Every
 /// stored signature then stops matching once and the vault re-fuses in one pass.
-const FUSE_V: &str = "v2";
+const FUSE_V: &str = "v3";
 
 /// Tags that every card gets from ingestion, so they say nothing about a group.
 const GENERIC_TAGS: &[&str] = &[
@@ -509,7 +509,9 @@ pub fn ocr_screenshots(conn: &Connection, limit: usize) -> usize {
          WHERE m.kind='image' AND COALESCE(m.file,'')!='' \
            AND COALESCE(m.ocr_text,'')='' \
            AND (lower(COALESCE(i.title,'')) LIKE '%screenshot%' \
-                OR lower(COALESCE(m.original_name,'')) LIKE '%screenshot%') \
+                OR lower(COALESCE(m.original_name,'')) LIKE '%screenshot%' \
+                OR lower(COALESCE(i.title,'')) LIKE '%screen%' \
+                OR m.height * 1.0 / NULLIF(m.width,0) >= 1.9) \
            AND (i.deleted_at IS NULL OR i.deleted_at='') \
          ORDER BY m.rowid LIMIT ?1",
     ) {
@@ -1346,7 +1348,7 @@ pub fn start_fitter(db_path: String) {
                 .unwrap_or(0);
             // Screenshots first: their OCR is the only content some items have,
             // and fusion reads it (one bounded batch per boot).
-            let ocr = ocr_screenshots(&conn, 400);
+            let ocr = ocr_screenshots(&conn, 800);
             if ocr > 0 {
                 eprintln!("taste-engine-rs: OCR'd {ocr} screenshots");
             }
