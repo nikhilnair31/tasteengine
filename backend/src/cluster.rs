@@ -25,7 +25,15 @@ const MAX_TEXT: usize = 2000;
 const MAX_ITERS: usize = 25;
 /// Bump when the fusion RULES change, not when an item's content changes. Every
 /// stored signature then stops matching once and the vault re-fuses in one pass.
-const FUSE_V: &str = "v4";
+const FUSE_V: &str = "v5";
+
+/// A bare transport label: "Instagram post", "x post", "saved image". Both the
+/// title and the body can carry one.
+const PLATFORMS: &[&str] = &[
+    "instagram", "twitter", "x", "reddit", "pinterest", "tumblr", "youtube", "tiktok",
+    "threads", "bluesky", "cosmos", "steam", "spotify", "arena", "are.na", "web", "link",
+    "note", "post", "image", "video", "saved",
+];
 
 /// Tags that every card gets from ingestion, so they say nothing about a group.
 const GENERIC_TAGS: &[&str] = &[
@@ -160,12 +168,16 @@ fn text_vec(joined: &str) -> Option<Vec<f32>> {
 /// taken on May 24, 2025", "saved image". They describe the transport, not the
 /// content, and they are near-identical across hundreds of rows, so they must
 /// never reach the text tower.
+fn platform_only(t: &str) -> bool {
+    let l = t.trim().to_lowercase();
+    if l.is_empty() {
+        return true;
+    }
+    let words: Vec<&str> = l.split_whitespace().collect();
+    words.len() <= 2 && words.first().is_some_and(|w| PLATFORMS.contains(w))
+}
+
 fn generic_title(t: &str) -> bool {
-    const PLATFORMS: &[&str] = &[
-        "instagram", "twitter", "x", "reddit", "pinterest", "tumblr", "youtube", "tiktok",
-        "threads", "bluesky", "cosmos", "steam", "spotify", "arena", "are.na", "web", "link",
-        "note", "post", "image", "video",
-    ];
     let l = t.trim().to_lowercase();
     if l.is_empty()
         || l == "saved image"
@@ -176,8 +188,7 @@ fn generic_title(t: &str) -> bool {
         return true;
     }
     // "Instagram post", "twitter", "x post": the platform is not a subject.
-    let words: Vec<&str> = l.split_whitespace().collect();
-    words.len() <= 2 && words.first().is_some_and(|w| PLATFORMS.contains(w))
+    platform_only(t)
 }
 
 /// The words a fusion should read: the post's own text, its title when the
@@ -188,7 +199,7 @@ fn item_text(title: &str, text: &str, digest: &str, ocr: &str) -> Option<String>
     if !generic_title(title) {
         parts.push(title.trim());
     }
-    if !text.trim().is_empty() {
+    if !text.trim().is_empty() && !platform_only(text) {
         parts.push(text.trim());
     }
     if !ocr.trim().is_empty() {
@@ -298,12 +309,22 @@ fn hash_token(token: &str) -> usize {
 /// for "does this match the phrase I typed" and useless for telling one
 /// screenshot from another, which is exactly what groups must do. Lexical
 /// overlap is the honest signal there.
+/// Explainer boilerplate: true of every card, so it can never separate two.
+const BOW_NOISE: &[&str] = &[
+    "post", "posts", "user", "users", "shares", "share", "shared", "screenshot", "screenshots",
+    "image", "images", "picture", "pictures", "photo", "photos", "video", "videos", "twitter",
+    "instagram", "reddit", "tiktok", "pinterest", "tumblr", "featuring", "showcasing",
+    "showcases", "features", "collection", "concept", "concepts", "comment", "comments",
+    "thread", "discusses", "discussion", "several", "various", "possible", "seems", "looks",
+    "appears", "design", "designs", "style", "styles", "aesthetic", "show", "shows",
+];
+
 fn bow_vec(text: &str) -> Option<Vec<f32>> {
     let mut v = vec![0.0f32; DIM];
     let mut used = false;
     for raw in text.split(|c: char| !c.is_alphanumeric()) {
         let tok = raw.to_lowercase();
-        if tok.len() < 3 || STOP_WORDS.contains(&tok.as_str()) {
+        if tok.len() < 3 || STOP_WORDS.contains(&tok.as_str()) || BOW_NOISE.contains(&tok.as_str()) {
             continue;
         }
         v[hash_token(&tok)] += 1.0;
