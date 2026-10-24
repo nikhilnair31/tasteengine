@@ -992,9 +992,19 @@ function waitForTabComplete(tabId, timeoutMs = 30000) {
 async function tabForTask(task) {
   const existing = await chrome.tabs.query({ url: tabPatterns(task.platform) });
   if (existing && existing.length) {
-    const alive = await chrome.tabs.get(existing[0].id).then(() => true).catch(() => false);
-    if (alive) return { tabId: existing[0].id, fresh: false };
-    // Stale/disarded tab (browser slept it): drop it and open fresh below.
+    const t = await chrome.tabs.get(existing[0].id).catch(() => null);
+    if (t) {
+      if (t.discarded) {
+        // A discarded tab still has its URL but its page is gone (browser
+        // slept it, pinned tabs included). Reload it so the content script
+        // can attach; then it behaves like a normal existing tab.
+        await chrome.tabs.reload(t.id).catch(() => {});
+        await waitForTabComplete(t.id);
+        await sleep(800);
+      }
+      return { tabId: t.id, fresh: false };
+    }
+    // Tab entry gone (window closed): open fresh below.
   }
   // A real target page (the configured board/saved/profile URL) attaches far
   // more reliably than the bare home feed, which can sit on a login/wall.
@@ -1028,9 +1038,20 @@ async function scrapeTask(task, controller) {
     let lastErr = "";
     for (let attempt = 0; attempt < 8 && !attached; attempt++) {
       if (controller.signal.aborted) throw new Error("aborted before scrape");
-      if (attempt >= 5 && fresh) {
+      if (attempt >= 5) {
+        // Suspended background tabs (fresh OR existing/pinned) skip script
+        // injection until they are foregrounded once. Activating is what
+        // unsticks them, so do it for every stuck tab, not only fresh ones.
         await chrome.tabs.update(tabId, { active: true }).catch(() => {});
         await sleep(800);
+      }
+      if (attempt === 6) {
+        // Second-to-last resort: a hung page never attaches in place. Reload
+        // it in the background (keeps pinned state), then ping the reloaded
+        // page on the final attempt.
+        await chrome.tabs.reload(tabId).catch(() => {});
+        await waitForTabComplete(tabId);
+        await sleep(1000);
       }
       try {
         await chrome.scripting.executeScript({ target: { tabId }, files: ["scraper.js"] });
@@ -1046,7 +1067,7 @@ async function scrapeTask(task, controller) {
       }
     }
     if (!attached) {
-      throw new Error("could not attach to a " + task.platform + " tab (fresh open) — last error: " + lastErr);
+      throw new Error("could not attach to a " + task.platform + " tab" + (fresh ? " (fresh open)" : "") + " — last error: " + lastErr);
     }
     const res = await chrome.tabs.sendMessage(tabId, { action: "tv-scrape", task });
     if (!res) throw new Error("no response from page scraper — did the tab load?");
