@@ -144,18 +144,13 @@ async function saveTabPage(tab, tags) {
   return r;
 }
 
-// The toolbar button is a one-click save: no default_popup in the manifest,
-// so action.onClicked fires and saves the page in the active tab directly.
-chrome.action.onClicked.addListener(async (tab) => {
-  if (!tab || !/^https?:/i.test(tab.url || "")) {
-    notify("Taste Engine", "This page cannot be saved");
-    return;
-  }
+// The toolbar button opens the settings page (options popout). Saving happens
+// from the right-click menu, hotkeys, or the popup's save button.
+chrome.action.onClicked.addListener(async () => {
   try {
-    const cfg = await getConfig();
-    await saveTabPage(tab, cfg.tags || []);
+    await chrome.runtime.openOptionsPage();
   } catch (e) {
-    notify("Taste Engine", "Could not save: " + ((e && e.message) || e));
+    notify("Taste Engine", "Could not open settings");
   }
 });
 

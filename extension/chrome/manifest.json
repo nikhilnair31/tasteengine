@@ -7,7 +7,7 @@
     }
   },
   "name": "Taste Engine Saver",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "description": "Save pages, images, links and selections to your Taste Engine.",
   "permissions": [
     "contextMenus",
