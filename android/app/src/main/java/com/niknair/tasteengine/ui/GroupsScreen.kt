@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
  * is asked for a cluster that does have matches.
  */
 @Composable
-fun GroupsScreen(vm: VaultVm, openDetail: (String) -> Unit) {
+fun GroupsScreen(vm: VaultVm, openDetail: (String) -> Unit, onBack: () -> Unit = {}) {
     val t = LocalTaste.current
     val scope = rememberCoroutineScope()
     val gridState = rememberLazyStaggeredGridState()
@@ -157,6 +157,7 @@ fun GroupsScreen(vm: VaultVm, openDetail: (String) -> Unit) {
             .background(t.field)
             .statusBarsPadding(),
     ) {
+        PageHeader("groups", onBack)
         PullToRefreshBox(
             isRefreshing = loading && cards.isNotEmpty(),
             onRefresh = { scope.launch { loadRandom() } },

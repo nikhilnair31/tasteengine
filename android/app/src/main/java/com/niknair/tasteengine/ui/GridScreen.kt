@@ -82,7 +82,7 @@ import com.niknair.tasteengine.vm.VaultVm
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GridScreen(vm: VaultVm, openDetail: (String) -> Unit) {
+fun GridScreen(vm: VaultVm, openDetail: (String) -> Unit, openSettings: () -> Unit = {}) {
     val t = LocalTaste.current
     val context = LocalContext.current
     val focus = LocalFocusManager.current
@@ -204,6 +204,10 @@ fun GridScreen(vm: VaultVm, openDetail: (String) -> Unit) {
             Spacer(Modifier.width(6.dp))
             ToolIcon(active = showSheet || vm.activeFilterCount() > 0, onClick = { showSheet = true }, desc = "filters and view") {
                 GridGlyph(vm.gridColumns, if (showSheet || vm.activeFilterCount() > 0) t.accentStrong else t.text)
+            }
+            Spacer(Modifier.width(6.dp))
+            ToolIcon(active = false, onClick = openSettings, desc = "settings") {
+                Icon(Icons.Default.Settings, contentDescription = "settings", tint = t.text, modifier = Modifier.size(20.dp))
             }
         }
     }

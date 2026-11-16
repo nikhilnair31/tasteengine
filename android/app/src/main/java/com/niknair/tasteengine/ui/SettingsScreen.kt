@@ -45,6 +45,8 @@ fun SettingsScreen(
     onLogout: () -> Unit,
     openTrash: () -> Unit = {},
     openCleanup: () -> Unit = {},
+    openGroups: () -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     val t = LocalTaste.current
     val scope = rememberCoroutineScope()
@@ -62,15 +64,7 @@ fun SettingsScreen(
             .statusBarsPadding()
             .verticalScroll(rememberScrollState()),
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, top = 18.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SectionLabel("settings")
-            Spacer(Modifier.weight(1f))
-        }
+        PageHeader("settings", onBack)
         Column(
             Modifier.padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -133,6 +127,11 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(10.dp))
             SectionLabel("library")
+            SettingRow(
+                title = "groups",
+                subtitle = "browse similarity clusters",
+                onClick = openGroups,
+            )
             SettingRow(
                 title = "trash",
                 subtitle = "restore or destroy deleted saves",

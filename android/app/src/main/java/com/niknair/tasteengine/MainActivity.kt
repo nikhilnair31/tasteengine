@@ -35,6 +35,8 @@ sealed class Screen {
     data class Detail(val id: String) : Screen()
     data object Trash : Screen()
     data object Cleanup : Screen()
+    data object Settings : Screen()
+    data object Groups : Screen()
 }
 
 /** Lets the share sheet hand a saved item to the main activity. */
@@ -79,24 +81,15 @@ class MainActivity : ComponentActivity() {
                                     AppTab.POSTS -> GridScreen(
                                         vm = vm,
                                         openDetail = { vm.primeDetailStub(it); stack.add(Screen.Detail(it)) },
+                                        openSettings = { stack.add(Screen.Settings) },
                                     )
                                     AppTab.FOLLOWUPS -> FollowupsScreen(
-                                        vm = vm,
-                                        openDetail = { vm.primeDetailStub(it); stack.add(Screen.Detail(it)) },
-                                    )
-                                    AppTab.GROUPS -> GroupsScreen(
                                         vm = vm,
                                         openDetail = { vm.primeDetailStub(it); stack.add(Screen.Detail(it)) },
                                     )
                                     AppTab.INSPIRE -> InspireScreen(
                                         vm = vm,
                                         openDetail = { vm.primeDetailStub(it); stack.add(Screen.Detail(it)) },
-                                    )
-                                    AppTab.SETTINGS -> SettingsScreen(
-                                        onThemeChange = { vm.setDark(it) },
-                                        onLogout = { Session.clear(); loggedIn = false },
-                                        openTrash = { stack.add(Screen.Trash) },
-                                        openCleanup = { stack.add(Screen.Cleanup) },
                                     )
                                 }
                             }
@@ -117,6 +110,19 @@ class MainActivity : ComponentActivity() {
                             onBack = { stack.removeAt(stack.lastIndex) },
                         )
                         is Screen.Cleanup -> CleanupScreen(
+                            vm = vm,
+                            openDetail = { vm.primeDetailStub(it); stack.add(Screen.Detail(it)) },
+                            onBack = { stack.removeAt(stack.lastIndex) },
+                        )
+                        is Screen.Settings -> SettingsScreen(
+                            onThemeChange = { vm.setDark(it) },
+                            onLogout = { Session.clear(); loggedIn = false },
+                            openTrash = { stack.add(Screen.Trash) },
+                            openCleanup = { stack.add(Screen.Cleanup) },
+                            openGroups = { stack.add(Screen.Groups) },
+                            onBack = { stack.removeAt(stack.lastIndex) },
+                        )
+                        is Screen.Groups -> GroupsScreen(
                             vm = vm,
                             openDetail = { vm.primeDetailStub(it); stack.add(Screen.Detail(it)) },
                             onBack = { stack.removeAt(stack.lastIndex) },

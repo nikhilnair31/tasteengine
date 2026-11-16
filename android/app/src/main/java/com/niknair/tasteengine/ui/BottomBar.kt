@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,21 +30,17 @@ import androidx.compose.ui.unit.sp
 import com.niknair.tasteengine.LocalTaste
 import com.niknair.tasteengine.AppFont
 
-/** The library views: posts, follow-ups, groups, inspire. Trash and cleanup live in settings. */
+/** The library views: posts, follow-ups, inspire. */
 enum class AppTab(val label: String) {
     POSTS("posts"),
     FOLLOWUPS("followups"),
-    GROUPS("groups"),
     INSPIRE("inspire"),
-    SETTINGS("settings"),
 }
 
 private fun iconFor(tab: AppTab): ImageVector? = when (tab) {
     AppTab.POSTS -> Icons.Default.Home
     AppTab.FOLLOWUPS -> Icons.Default.Done
-    AppTab.GROUPS -> null // drawn 2x2 tile glyph
     AppTab.INSPIRE -> null // drawn glyph
-    AppTab.SETTINGS -> Icons.Default.Settings
 }
 
 @Composable
@@ -98,14 +93,6 @@ fun TasteBottomBar(
                             contentDescription = tab.label,
                             tint = if (active) t.accentStrong else t.muted,
                             modifier = Modifier.size(20.dp),
-                        )
-                    } else if (tab == AppTab.GROUPS) {
-                        GridGlyph(
-                            columns = 2,
-                            tint = if (active) t.accentStrong else t.muted,
-                            modifier = Modifier
-                                .size(18.dp)
-                                .semantics { contentDescription = tab.label },
                         )
                     } else {
                         BoltGlyph(
