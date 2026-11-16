@@ -230,12 +230,53 @@ fn transcribe_existing_audio(conn: &Connection, item_id: &str) {
 /// process one item end-to-end (pipeline._process)
 pub fn process_item(conn: &Connection, item_id: &str) -> Result<(), String> {
     set_job(conn, item_id, "working", "");
-    let result = process_inner(conn, item_id);
+    let result = process_inner(conn, item_id, false);
     match &result {
         Ok(()) => set_job(conn, item_id, "done", ""),
         Err(e) => set_job(conn, item_id, "error", &e[..e.len().min(200)]),
     }
     result
+}
+
+/// pipeline.refresh_item: force a full refetch + re-explain of one item.
+///
+/// The user wants refresh to actually re-pull the post and regenerate the
+/// explainer ("if the explainer looks funky, click refresh and pull out
+/// something better"). Unlike `process_item` (normal ingest), this always:
+///   1. re-runs `ingest::enrich` even when media already exists, so a changed
+///      title/text/images on the source post get picked up, and
+///   2. clears + re-downloads the URL-backed media rows so a broken/expired
+///      image URL is replaced instead of leaving the stale file behind.
+/// Then it queues a forced re-explain, which is what the web/Android pollers
+/// wait on via `explanation_status` (pending -> done/failed).
+///
+/// Notes and staged-file items carry bytes the user uploaded themselves, so
+/// their media rows are NEVER cleared here — only URL-backed items are.
+pub fn refresh_item(conn: &Connection, item_id: &str) -> Result<(), String> {
+    let item = fetch_item(conn, item_id).ok_or_else(|| "not found".to_string())?;
+    let deleted = item.get("deleted_at").and_then(|v| v.as_str()).unwrap_or("");
+    if !deleted.is_empty() {
+        return Err("item is deleted".to_string());
+    }
+    let url = item.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let is_note = item
+        .get("extra")
+        .and_then(|v| v.as_str())
+        .and_then(|s| serde_json::from_str::<Value>(s).ok())
+        .and_then(|e| e.get("note").and_then(|n| n.as_bool()))
+        .unwrap_or(false);
+    // URL-backed only. Notes / staged uploads hold user bytes; skip the wipe.
+    if !is_note && !url.is_empty() {
+        for r in vault::fetch_rows(conn, "SELECT * FROM media WHERE item_id=?", &[json!(item_id)]) {
+            mediaio::delete_media_files(&Value::Object(r));
+        }
+        let _ = conn.execute("DELETE FROM media WHERE item_id=?", [item_id]);
+        // drop the stale vector; the re-embed below recomputes it from fresh media
+        let _ = conn.execute("DELETE FROM item_embeds WHERE item_id=?", [item_id]);
+    }
+    process_inner(conn, item_id, true)?;
+    write::queue_explain(conn, item_id, true);
+    Ok(())
 }
 
 fn fetch_item(conn: &Connection, item_id: &str) -> Option<Value> {
@@ -245,7 +286,7 @@ fn fetch_item(conn: &Connection, item_id: &str) -> Option<Value> {
         .map(Value::Object)
 }
 
-fn process_inner(conn: &Connection, item_id: &str) -> Result<(), String> {
+fn process_inner(conn: &Connection, item_id: &str, force_enrich: bool) -> Result<(), String> {
     let mut item = fetch_item(conn, item_id).ok_or_else(|| "not found".to_string())?;
 
     let mut extra: Map<String, Value> = item
@@ -312,8 +353,9 @@ fn process_inner(conn: &Connection, item_id: &str) -> Result<(), String> {
     let url = item.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let is_note = extra.get("note").and_then(|v| v.as_bool()).unwrap_or(false);
 
-    // 1. enrich a bare URL when no media candidates exist
-    if !url.is_empty() && image_urls.is_empty() && !is_note {
+    // 1. enrich a bare URL when no media candidates exist, or always on a
+    //    forced refresh so a changed source post is re-pulled.
+    if !url.is_empty() && !is_note && (force_enrich || image_urls.is_empty()) {
         let lower = url.to_lowercase();
         let path_part = url::Url::parse(&url).map(|p| p.path().to_lowercase()).unwrap_or_default();
         if [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"].iter().any(|e| path_part.ends_with(e)) {

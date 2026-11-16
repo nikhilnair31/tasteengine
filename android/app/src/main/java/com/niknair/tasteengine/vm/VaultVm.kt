@@ -283,8 +283,32 @@ class VaultVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun refreshItem(id: String) {
-        viewModelScope.launch { runCatching { Api.refreshItem(id) } }
+    fun refreshItem(id: String, onReload: () -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching { Api.refreshItem(id) }
+            // The refresh handler returns the instant it spawns the background
+            // thread, so the first poll can still read the OLD done/failed
+            // until the worker flips it to 'pending'. Only reload once the
+            // status has actually advanced past the pre-POST snapshot (a
+            // change, or after 'pending' was seen) — never on a stale no-op
+            // read. ~2 min safety cap; re-explain can outlast a fixed delay.
+            val prior = runCatching { Api.item(id) }
+                .getOrNull()?.optString("explanation_status")?.ifEmpty { null }
+            var advanced = false
+            var tries = 0
+            while (tries < 80) {
+                delay(1500)
+                tries += 1
+                val st = runCatching { Api.item(id) }
+                    .getOrNull()?.optString("explanation_status")?.ifEmpty { null }
+                if (st == "pending") { advanced = true; continue }
+                if (st == "done" || st == "failed") {
+                    if (advanced || st != prior) break
+                    // stale done/failed from before the refresh; keep polling
+                }
+            }
+            onReload()
+        }
     }
 
     fun explainItem(id: String) {

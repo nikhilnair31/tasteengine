@@ -586,6 +586,7 @@ async fn item_refresh(
     axum::extract::State(app): axum::extract::State<Arc<App>>,
     axum::extract::Path(item_id): axum::extract::Path<String>,
 ) -> Response {
+    let mut live = false;
     with_conn(&app, |conn| {
         let exists: i64 = conn
             .query_row(
@@ -594,13 +595,32 @@ async fn item_refresh(
                 |r| r.get(0),
             )
             .unwrap_or(0);
-        if exists == 0 {
-            return api_error(StatusCode::NOT_FOUND, "not found");
-        }
-        // python spawns pipeline.refresh_item in a daemon thread; the real
-        // worker lands with the pipeline port. Response parity only.
-        Json(serde_json::json!({"ok": true, "status": "refreshing"})).into_response()
-    })
+        live = exists > 0;
+        Json(serde_json::json!({})).into_response()
+    });
+    if !live {
+        return api_error(StatusCode::NOT_FOUND, "not found");
+    }
+    // Run the real refetch + forced re-explain on a background thread with its
+    // own connection (mirrors the pipeline/explain workers) so the HTTP call
+    // returns immediately and the app-wide DB lock is never held across the
+    // network I/O that enrich + media download + model call require. The web
+    // and Android pollers watch explanation_status (pending -> done/failed),
+    // which `pipeline::refresh_item` -> `queue_explain(force=true)` transitions.
+    let db_path = app.cfg.data_dir.join("vault.db").to_string_lossy().to_string();
+    let work_id = item_id.clone();
+    std::thread::Builder::new()
+        .name(format!("refresh-{work_id}"))
+        .spawn(move || {
+            if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+                let _ = conn.pragma_update(None, "foreign_keys", "ON");
+                if let Err(e) = crate::pipeline::refresh_item(&conn, &work_id) {
+                    eprintln!("[refresh-rs] {work_id}: {e}");
+                }
+            }
+        })
+        .expect("spawn refresh thread");
+    Json(serde_json::json!({"ok": true, "status": "refreshing"})).into_response()
 }
 
 async fn item_similar(

@@ -4214,12 +4214,18 @@ function bindDetailEvents(it, opts) {
     const runToken = ++explainerWatchToken;
     const explainerToggle = body.querySelector('.row-toggle[data-row="explainer"]');
     const explainerOpen = !!explainerToggle?.classList.contains("open");
+    // Snapshot the status BEFORE the POST: the refresh handler returns the
+    // instant it spawns the background thread, so a poll right after can still
+    // read the OLD 'done'/'failed' until the worker flips it to 'pending'. We
+    // only accept a result that actually advanced past that snapshot (see
+    // waitForExplainer) instead of papering over a no-op refresh with a timer.
+    const priorStatus = it.explanation_status || null;
     re.dataset.pending = "true";
     re.disabled = true;
     setExplainerPending();
     try {
       await api("/api/items/" + it.id + "/refresh", { method: "POST" });
-      await waitForExplainer(it.id, runToken, explainerOpen);
+      await waitForExplainer(it.id, runToken, explainerOpen, priorStatus);
     } catch (err) {
       if (runToken !== explainerWatchToken) return;
       showExplainerError(err.message);
@@ -4300,17 +4306,28 @@ function showExplainerError(message) {
   }
 }
 
-async function waitForExplainer(id, runToken, explainerOpen) {
+async function waitForExplainer(id, runToken, explainerOpen, priorStatus) {
+  // A refresh POST returns the instant the background thread is spawned; the
+  // worker then flips explanation_status to 'pending' (queue_explain force)
+  // and later to 'done'/'failed'. The poller must NOT re-render on the OLD
+  // done/failed that still lingers for a poll or two after the POST — that is
+  // exactly what used to make the stub refresh look like a no-op. So we only
+  // accept a done/failed that either (a) was preceded by a 'pending' sighting
+  // (proves this job went through the worker) or (b) differs from the status
+  // captured before the POST (a genuine change). A bare time-based guard is
+  // dropped because it both hides a stale result and delays a real one.
+  let sawPending = false;
   const startedAt = Date.now();
   while (runToken === explainerWatchToken) {
     await new Promise((resolve) => setTimeout(resolve, 900));
     const detail = $("detail");
     if (runToken !== explainerWatchToken || detail.classList.contains("hidden") || detail.dataset.itemId !== id) return;
     const latest = await api("/api/items/" + id);
-    if (!["done", "failed"].includes(latest.explanation_status)) continue;
-    // The refresh endpoint returns before the background thread queues the
-    // explainer; ignore a stale 'done' from before the refresh took effect.
-    if (["done", "failed"].includes(latest.explanation_status) && Date.now() - startedAt < 8000) continue;
+    const st = latest.explanation_status;
+    if (st === "pending") { sawPending = true; continue; }
+    if (!["done", "failed"].includes(st)) continue;
+    // Only a result that advanced past the snapshot counts as fresh.
+    if (!sawPending && st === priorStatus && Date.now() - startedAt < 8000) continue;
     if (runToken !== explainerWatchToken || detail.classList.contains("hidden") || detail.dataset.itemId !== id) return;
     renderDetail(latest, { explainerOpen });
     return;

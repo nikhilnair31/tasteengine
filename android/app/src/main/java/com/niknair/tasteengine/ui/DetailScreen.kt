@@ -78,7 +78,6 @@ import com.niknair.tasteengine.net.ItemDetail
 import com.niknair.tasteengine.net.MediaInfo
 import com.niknair.tasteengine.net.Parse
 import com.niknair.tasteengine.vm.VaultVm
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -402,11 +401,10 @@ fun DetailScreen(vm: VaultVm, itemId: String, onBack: () -> Unit, openDetail: (S
                         },
                 ) {
                     DetailAction(onClick = {
-                        vm.refreshItem(itemId)
-                        scope.launch {
-                            delay(5000)
-                            reload()
-                        }
+                        // refreshItem polls explanation_status until the new
+                        // explainer lands, then calls reload to repaint it —
+                        // no fixed sleep that can miss a slow re-explain.
+                        vm.refreshItem(itemId) { reload() }
                     }) {
                         Icon(
                             Icons.Default.Refresh,
