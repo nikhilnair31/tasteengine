@@ -266,17 +266,74 @@ pub fn refresh_item(conn: &Connection, item_id: &str) -> Result<(), String> {
         .and_then(|e| e.get("note").and_then(|n| n.as_bool()))
         .unwrap_or(false);
     // URL-backed only. Notes / staged uploads hold user bytes; skip the wipe.
-    if !is_note && !url.is_empty() {
-        for r in vault::fetch_rows(conn, "SELECT * FROM media WHERE item_id=?", &[json!(item_id)]) {
-            mediaio::delete_media_files(&Value::Object(r));
-        }
+    // Snapshot the old rows and leave their files on disk. A refresh that fails
+    // to re-download must never leave the item stripped of its picture, so the
+    // rows are only dropped once replacements exist, and the old files are only
+    // removed after that.
+    let old_media = if !is_note && !url.is_empty() {
+        let rows = vault::fetch_rows(conn, "SELECT * FROM media WHERE item_id=? ORDER BY rowid", &[json!(item_id)]);
         let _ = conn.execute("DELETE FROM media WHERE item_id=?", [item_id]);
         // drop the stale vector; the re-embed below recomputes it from fresh media
         let _ = conn.execute("DELETE FROM item_embeds WHERE item_id=?", [item_id]);
+        rows
+    } else {
+        Vec::new()
+    };
+    let processed = process_inner(conn, item_id, true);
+    if !old_media.is_empty() {
+        let now: i64 = conn
+            .query_row("SELECT COUNT(*) FROM media WHERE item_id=?", [item_id], |r| r.get(0))
+            .unwrap_or(0);
+        if now == 0 {
+            // Nothing came back. Put the old rows back; their files still exist.
+            for obj in &old_media {
+                let cols: Vec<String> = obj.keys().cloned().collect();
+                let placeholders = vec!["?"; cols.len()].join(",");
+                let sql = format!("INSERT OR REPLACE INTO media({}) VALUES({})", cols.join(","), placeholders);
+                let vals: Vec<rusqlite::types::Value> = cols
+                    .iter()
+                    .map(|c| vault::to_rusqlite_value(obj.get(c).unwrap_or(&Value::Null)))
+                    .collect();
+                let _ = conn.execute(&sql, rusqlite::params_from_iter(vals));
+            }
+            eprintln!("[refresh] {item_id}: re-download produced no media, kept {} old row(s)", old_media.len());
+        } else {
+            for row in &old_media {
+                mediaio::delete_media_files(&Value::Object(row.clone()));
+            }
+        }
     }
-    process_inner(conn, item_id, true)?;
+    processed?;
     write::queue_explain(conn, item_id, true);
     Ok(())
+}
+
+/// Decode %XX escapes so an extension hidden inside a proxy query string is
+/// visible (e.g. `url=https%3A%2F%2Fhost%2Fpic.png`).
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = |b: u8| -> Option<u8> {
+                match b {
+                    b'0'..=b'9' => Some(b - b'0'),
+                    b'a'..=b'f' => Some(b - b'a' + 10),
+                    b'A'..=b'F' => Some(b - b'A' + 10),
+                    _ => None,
+                }
+            };
+            if let (Some(h), Some(l)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
+                out.push(h * 16 + l);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).to_string()
 }
 
 fn fetch_item(conn: &Connection, item_id: &str) -> Option<Value> {
@@ -357,10 +414,28 @@ fn process_inner(conn: &Connection, item_id: &str, force_enrich: bool) -> Result
     //    forced refresh so a changed source post is re-pulled.
     if !url.is_empty() && !is_note && (force_enrich || image_urls.is_empty()) {
         let lower = url.to_lowercase();
-        let path_part = url::Url::parse(&url).map(|p| p.path().to_lowercase()).unwrap_or_default();
-        if [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"].iter().any(|e| path_part.ends_with(e)) {
+        let parsed = url::Url::parse(&url).ok();
+        let path_part = parsed.as_ref().map(|p| p.path().to_lowercase()).unwrap_or_default();
+        // A proxy URL carries the real image in its query string (e.g.
+        // /api/proxy/image?url=...%2Fpic.png) and its path has no extension, so
+        // test the decoded query as well. Missing this stripped such items of
+        // their picture on refresh.
+        let query_part = parsed
+            .as_ref()
+            .map(|p| {
+                let raw = p.query().unwrap_or("");
+                let decoded = percent_decode(raw);
+                decoded.to_lowercase()
+            })
+            .unwrap_or_default();
+        let has_ext = |s: &str, exts: &[&str]| exts.iter().any(|e| s.ends_with(e) || s.contains(&format!("{e}&")) || s.contains(&format!("{e}?")));
+        let img_exts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"];
+        let vid_exts = [".mp4", ".webm", ".mov"];
+        let is_img = has_ext(&path_part, &img_exts) || has_ext(&query_part, &img_exts);
+        let is_vid = has_ext(&path_part, &vid_exts) || has_ext(&query_part, &vid_exts) || has_ext(&lower, &vid_exts);
+        if is_img {
             image_urls = vec![url.clone()];
-        } else if [".mp4", ".webm", ".mov"].iter().any(|e| path_part.ends_with(e)) || lower.ends_with(".mp4") || lower.ends_with(".webm") || lower.ends_with(".mov") {
+        } else if is_vid {
             extra.insert("video_url".into(), json!(url));
         } else {
             let meta = ingest::enrich(&url);

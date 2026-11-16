@@ -109,10 +109,22 @@ pub fn queue_explain(conn: &Connection, item_id: &str, force: bool) {
         }
     }
     pending.insert(item_id.to_string());
-    let _ = conn.execute(
-        "INSERT OR REPLACE INTO explanations(item_id, status, data, updated_at) VALUES(?,?,?,datetime('now'))",
-        rusqlite::params![item_id, "pending", "{}"],
-    );
+    // Mark pending WITHOUT wiping the stored explainer. The old code replaced
+    // data with '{}' here, so a refresh that later failed left the item with no
+    // explainer at all and the clients blanked out while it ran. Keep the body
+    // and only flip the status; run_explain overwrites it on success.
+    let updated = conn
+        .execute(
+            "UPDATE explanations SET status='pending', updated_at=datetime('now') WHERE item_id=?",
+            rusqlite::params![item_id],
+        )
+        .unwrap_or(0);
+    if updated == 0 {
+        let _ = conn.execute(
+            "INSERT OR REPLACE INTO explanations(item_id, status, data, updated_at) VALUES(?,?,?,datetime('now'))",
+            rusqlite::params![item_id, "pending", "{}"],
+        );
+    }
     QUEUE.get_or_init(|| Mutex::new(Vec::new())).lock_ok().push(item_id.to_string());
 }
 
@@ -521,47 +533,58 @@ fn call_model(
     });
     let api_key = std::env::var("OPENROUTER_API_KEY").unwrap_or_default();
     let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(120)).build();
-    let resp = match agent
-        .post("https://openrouter.ai/api/v1/chat/completions")
-        .set("Authorization", &format!("Bearer {api_key}"))
-        .set("Content-Type", "application/json")
-        .send_string(&payload.to_string())
-    {
-        Ok(r) => r,
-        Err(ureq::Error::Status(code, r)) => {
-            let mut body = String::new();
-            let _ = r.into_reader().read_to_string(&mut body);
-            return Err(format!("openrouter {code}: {}", body.chars().take(400).collect::<String>()));
+    // The model intermittently answers in prose instead of JSON (measured 1 in 3
+    // on this deployment). One bad answer used to fail the whole refresh, so
+    // retry the request a few times before giving up. Auth and transport errors
+    // are not transient, so they return at once.
+    let attempts = 3;
+    let mut last_err = String::from("model did not return JSON");
+    for attempt in 1..=attempts {
+        let resp = match agent
+            .post("https://openrouter.ai/api/v1/chat/completions")
+            .set("Authorization", &format!("Bearer {api_key}"))
+            .set("Content-Type", "application/json")
+            .send_string(&payload.to_string())
+        {
+            Ok(r) => r,
+            Err(ureq::Error::Status(code, r)) => {
+                let mut body = String::new();
+                let _ = r.into_reader().read_to_string(&mut body);
+                return Err(format!("openrouter {code}: {}", body.chars().take(400).collect::<String>()));
+            }
+            Err(e) => return Err(format!("openrouter: {e}")),
+        };
+        let mut body = String::new();
+        resp.into_reader().read_to_string(&mut body).map_err(|e| e.to_string())?;
+        let data: Value = serde_json::from_str(&body).map_err(|e| format!("openrouter json: {e}"))?;
+        let raw = match data.pointer("/choices/0/message/content").and_then(|v| v.as_str()) {
+            Some(c) => c.trim().to_string(),
+            None => {
+                last_err = "no content".to_string();
+                continue;
+            }
+        };
+        let raw = if raw.starts_with("```") {
+            raw.splitn(2, '\n').nth(1).unwrap_or("").rsplit_once("```").map(|(a, _)| a.trim()).unwrap_or("").to_string()
+        } else {
+            raw
+        };
+        if let Ok(v) = serde_json::from_str::<Value>(&raw) {
+            return Ok(v);
         }
-        Err(e) => return Err(format!("openrouter: {e}")),
-    };
-    let mut body = String::new();
-    resp.into_reader().read_to_string(&mut body).map_err(|e| e.to_string())?;
-    let data: Value = serde_json::from_str(&body).map_err(|e| format!("openrouter json: {e}"))?;
-    let raw = data
-        .pointer("/choices/0/message/content")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "no content".to_string())?
-        .trim()
-        .to_string();
-    let raw = if raw.starts_with("```") {
-        raw.splitn(2, '\n').nth(1).unwrap_or("").rsplit_once("```").map(|(a, _)| a.trim()).unwrap_or("").to_string()
-    } else {
-        raw
-    };
-    if let Ok(v) = serde_json::from_str::<Value>(&raw) {
-        return Ok(v);
-    }
-    let a = raw.find('{');
-    let b = raw.rfind('}');
-    if let (Some(a), Some(b)) = (a, b) {
-        if b > a {
-            if let Ok(v) = serde_json::from_str::<Value>(&raw[a..=b]) {
-                return Ok(v);
+        let a = raw.find('{');
+        let b = raw.rfind('}');
+        if let (Some(a), Some(b)) = (a, b) {
+            if b > a {
+                if let Ok(v) = serde_json::from_str::<Value>(&raw[a..=b]) {
+                    return Ok(v);
+                }
             }
         }
+        eprintln!("[explain-rs] attempt {attempt}/{attempts}: model did not return JSON");
+        last_err = "model did not return JSON".to_string();
     }
-    Err("model did not return JSON".into())
+    Err(last_err)
 }
 
 // ---------- vague-place filtering (explain.py regexes) ----------
@@ -1089,10 +1112,44 @@ fn run_explain(conn: &Connection, item_id: &str) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("[explain-rs] {item_id}: {e}");
-            let _ = conn.execute(
-                "INSERT OR REPLACE INTO explanations(item_id, status, data, updated_at) VALUES(?,?,?,datetime('now'))",
-                rusqlite::params![item_id, "failed", json!({"error": e.chars().take(300).collect::<String>()}).to_string()],
-            );
+            // Never destroy a good explainer because a retry failed. If one is
+            // already stored, keep it and restore its status so the clients keep
+            // showing it; the refresh then simply changes nothing.
+            let prev: Option<(String, String)> = conn
+                .query_row(
+                    "SELECT status, data FROM explanations WHERE item_id=?",
+                    [item_id],
+                    |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+                )
+                .ok();
+            let keep = prev.as_ref().and_then(|(_status, data)| {
+                let has_body = serde_json::from_str::<Value>(data)
+                    .ok()
+                    .map(|v| v.get("error").is_none() && v.as_object().map(|o| !o.is_empty()).unwrap_or(false))
+                    .unwrap_or(false);
+                // queue_explain marks the row pending but keeps the body, so a
+                // stored body here is the previous good explainer. Restore it as
+                // done so the clients keep rendering it.
+                if has_body {
+                    Some(("done".to_string(), data.clone()))
+                } else {
+                    None
+                }
+            });
+            match keep {
+                Some((status, data)) => {
+                    let _ = conn.execute(
+                        "UPDATE explanations SET status=?, data=?, updated_at=datetime('now') WHERE item_id=?",
+                        rusqlite::params![status, data, item_id],
+                    );
+                }
+                None => {
+                    let _ = conn.execute(
+                        "INSERT OR REPLACE INTO explanations(item_id, status, data, updated_at) VALUES(?,?,?,datetime('now'))",
+                        rusqlite::params![item_id, "failed", json!({"error": e.chars().take(300).collect::<String>()}).to_string()],
+                    );
+                }
+            }
             refresh_explainer_fts(conn, item_id);
             return;
         }
