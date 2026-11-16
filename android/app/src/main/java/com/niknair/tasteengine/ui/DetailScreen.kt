@@ -933,12 +933,15 @@ private fun PaletteStrip(palette: List<Swatch>) {
             )
         }
         Spacer(Modifier.height(8.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            maxItemsInEachRow = 5,
+        ) {
             shown.forEach { (role, hex) ->
                 Column(
                     Modifier
-                        .width(74.dp)
-                        .padding(bottom = 10.dp)
+                        .weight(1f)
+                        .padding(bottom = 8.dp)
                         .clickable {
                             val cm = context.getSystemService(ClipboardManager::class.java)
                             cm.setPrimaryClip(ClipData.newPlainText("hex", hex))
@@ -948,15 +951,14 @@ private fun PaletteStrip(palette: List<Swatch>) {
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .height(56.dp)
                             .background(hexColorOr(hex, t.surface2))
                             .border(1.dp, t.line),
                     )
-                    Spacer(Modifier.height(5.dp))
                     if (!role.isNullOrEmpty()) {
-                        Text(role, color = t.muted, fontSize = 10.sp, fontFamily = AppFont)
+                        Spacer(Modifier.height(4.dp))
+                        Text(role, color = t.muted, fontSize = 9.sp, fontFamily = AppFont, maxLines = 1)
                     }
-                    Text(hex, color = t.muted, fontSize = 10.sp, fontFamily = AppFont)
                 }
             }
         }

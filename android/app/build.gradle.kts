@@ -13,8 +13,8 @@ android {
         applicationId = "com.niknair.tasteengine"
         minSdk = 31
         targetSdk = 36
-        versionCode = 41
-        versionName = "0.9.5"
+        versionCode = 42
+        versionName = "0.9.6"
     }
 
     val ksPath = System.getenv("KEYSTORE_PATH")
