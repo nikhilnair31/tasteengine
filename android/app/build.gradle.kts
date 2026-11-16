@@ -13,8 +13,20 @@ android {
         applicationId = "com.niknair.tasteengine"
         minSdk = 31
         targetSdk = 36
-        versionCode = 40
-        versionName = "0.9.4"
+        versionCode = 41
+        versionName = "0.9.5"
+    }
+
+    val ksPath = System.getenv("KEYSTORE_PATH")
+    signingConfigs {
+        if (ksPath != null) {
+            create("release") {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -24,6 +36,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (ksPath != null) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

@@ -3,6 +3,9 @@ package com.niknair.tasteengine.net
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** One measured color in the cover palette; `pct` is its share of the image. */
+data class Swatch(val hex: String = "", val pct: Double = 0.0)
+
 /** Card-level media info (the `cover` object on grid items). */
 data class MediaInfo(
     val id: String = "",
@@ -14,6 +17,7 @@ data class MediaInfo(
     val duration: Double = 0.0,
     val mime: String = "",
     val transcript: String = "",
+    val palette: List<Swatch> = emptyList(),
 ) {
     val best: String get() = thumb.ifEmpty { file }
     val isVideo: Boolean get() = kind == "video"
@@ -140,6 +144,21 @@ object Parse {
     }
 
 
+    private fun palette(o: JSONObject?): List<Swatch> {
+        if (o == null) return emptyList()
+        val arr = o.optJSONArray("palette") ?: return emptyList()
+        val out = ArrayList<Swatch>(arr.length())
+        for (i in 0 until arr.length()) out.add(swatch(arr.optJSONObject(i)))
+        return out
+    }
+
+    /** One cover-palette entry: `{ "hex": "#rrggbb", "pct": 12.3 }`. */
+    private fun swatch(o: JSONObject?): Swatch {
+        if (o == null) return Swatch()
+        val hex = o.optString("hex").lowercase()
+        return Swatch(hex = hex, pct = o.optDouble("pct", 0.0))
+    }
+
     fun media(o: JSONObject?): MediaInfo? {
         if (o == null || o.isNull("id")) return null
         return MediaInfo(
@@ -152,6 +171,7 @@ object Parse {
             duration = o.optDouble("duration", 0.0),
             mime = o.optString("mime"),
             transcript = o.optString("transcript"),
+            palette = palette(o),
         )
     }
 
@@ -169,6 +189,7 @@ object Parse {
             duration = o.optDouble("duration", 0.0),
             mime = o.optString("mime"),
             transcript = o.optString("transcript"),
+            palette = palette(o),
         )
     }
 

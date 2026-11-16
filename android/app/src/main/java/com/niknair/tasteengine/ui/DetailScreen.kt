@@ -1,5 +1,7 @@
 package com.niknair.tasteengine.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -10,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -62,6 +66,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import com.niknair.tasteengine.net.Swatch
 import coil.compose.AsyncImage
 import com.niknair.tasteengine.LocalTaste
 import com.niknair.tasteengine.AppFont
@@ -296,6 +302,11 @@ fun DetailScreen(vm: VaultVm, itemId: String, onBack: () -> Unit, openDetail: (S
                             val ex = d.explanation
                             Panel {
                                 Column {
+                                    val palette = d.card.cover?.palette.orEmpty()
+                                    if (palette.isNotEmpty()) {
+                                        PaletteStrip(palette)
+                                        Spacer(Modifier.height(14.dp))
+                                    }
                                     when {
                                         ex != null -> ExplainBlock(ex)
                                         d.card.jobState == "queued" || d.card.jobState == "working" -> Text(
@@ -879,3 +890,80 @@ private fun BulletRow(text: String) {
         Text(text, color = t.text, fontSize = 13.sp, fontFamily = AppFont, lineHeight = 19.sp)
     }
 }
+
+// ------------------------------------------------------------ palette strip
+
+/**
+ * 9-style color strip derived from the item cover. Header cycles styles on tap;
+ * each swatch copies its hex to the clipboard on tap with a brief toast.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PaletteStrip(palette: List<Swatch>) {
+    val t = LocalTaste.current
+    val context = LocalContext.current
+    var styleIndex by remember { mutableStateOf(0) }
+    val styleName = Palette.STYLE_NAMES[styleIndex % Palette.STYLE_NAMES.size]
+    val shown = Palette.paletteView(palette, styleName)
+    if (shown.isEmpty()) return
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "colors",
+                color = t.muted,
+                fontSize = 11.sp,
+                fontFamily = AppFont,
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = "·",
+                color = t.muted,
+                fontSize = 11.sp,
+                fontFamily = AppFont,
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = styleName,
+                color = t.accentStrong,
+                fontSize = 11.sp,
+                fontFamily = AppFont,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable {
+                    styleIndex = (styleIndex + 1) % Palette.STYLE_NAMES.size
+                },
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            shown.forEach { (role, hex) ->
+                Column(
+                    Modifier
+                        .width(74.dp)
+                        .padding(bottom = 10.dp)
+                        .clickable {
+                            val cm = context.getSystemService(ClipboardManager::class.java)
+                            cm.setPrimaryClip(ClipData.newPlainText("hex", hex))
+                            Toast.makeText(context, "$hex copied", Toast.LENGTH_SHORT).show()
+                        },
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .background(hexColorOr(hex, t.surface2))
+                            .border(1.dp, t.line),
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    if (!role.isNullOrEmpty()) {
+                        Text(role, color = t.muted, fontSize = 10.sp, fontFamily = AppFont)
+                    }
+                    Text(hex, color = t.muted, fontSize = 10.sp, fontFamily = AppFont)
+                }
+            }
+        }
+    }
+}
+
+private fun hexColorOr(hex: String, fallback: Color): Color =
+    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(fallback)
