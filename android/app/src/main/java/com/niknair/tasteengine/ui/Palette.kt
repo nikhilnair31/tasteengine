@@ -209,10 +209,11 @@ object Palette {
             fun take(role: String, e: Entry?) {
                 if (e != null && out.none { it.second == e.hex }) out.add(role to e.hex)
             }
-            take("primary", byShare.firstOrNull())
+            val primary = byShare.firstOrNull()
+            take("primary", primary)
             val secondary = byShare.find { e ->
                 out.none { it.second == e.hex } &&
-                    (out.isEmpty() || hueDist(e.h, hexToOklch(out[0].second).h) >= 45)
+                    (out.isEmpty() || (primary != null && hueDist(e.h, primary.h) >= 45))
             } ?: byShare.getOrNull(1)
             take("secondary", secondary)
             take("accent", byVivid.find { e -> out.none { it.second == e.hex } })
